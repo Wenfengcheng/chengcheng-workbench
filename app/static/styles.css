@@ -552,6 +552,7 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
 .first-run-banner span { font-size: 13.5px; color: var(--cp-text-muted); line-height: 1.5; }
 .first-run-banner.working { border-color: var(--cp-link); border-left-color: var(--cp-link); background: rgba(0, 120, 212, 0.08); }
 .first-run-banner.clear { border-color: var(--cp-success); border-left-color: var(--cp-success); background: rgba(22, 163, 74, 0.08); }
+.first-run-banner.warn { border-color: var(--cp-warning, #d97706); border-left-color: var(--cp-warning, #d97706); background: rgba(217, 119, 6, 0.08); }
 .work-status {
   display: grid;
   gap: 8px;

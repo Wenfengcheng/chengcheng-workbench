@@ -1,7 +1,7 @@
 {
   "name": "dream-team-for-microsoft-scout",
   "displayName": "The Dream Team for Microsoft Scout",
-  "version": "4.2.1",
+  "version": "4.3.0",
   "license": "MIT",
   "author": "Shervin Shaffie",
   "audience": "Public - any Microsoft Scout user (Windows)",
@@ -54,8 +54,8 @@
     }
   },
   "model": {
-    "default": "claude-opus-4.8",
+    "default": "claude-opus-5",
     "selectableAtSetup": true,
-    "note": "Wizard lists the user's available models at runtime; falls back to the best available if Opus 4.8 is absent."
+    "note": "Wizard lists the user's available models at runtime; falls back to the best available if Opus 5 is absent."
   }
 }

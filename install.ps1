@@ -186,7 +186,7 @@ if (-not $Auto) {
   Write-Host ''
   if ($ScoutMissing) {
     Write-Host '=== Local app placed — but Microsoft Scout is required ===' -ForegroundColor Yellow
-    Write-Host '  1) Install Microsoft Scout on this machine. Microsoft employees: get it from https://aka.ms/clawpilot'
+    Write-Host '  1) Install Microsoft Scout on this machine. Microsoft employees: get it from your internal aka.ms site, not the public link.'
     Write-Host '  2) Run the install again so the team skills load into Scout.'
     Write-Host '  3) Then, in a new Scout chat, type:  /daily-flow-setup'
   } else {
@@ -286,7 +286,7 @@ if ($AgentInline -and -not $ScoutMissing) {
 # Otherwise (manual -Auto run, or Scout missing): guide the user through finishing in Scout.
 if ($ScoutMissing) {
   # No Scout on this machine: do not pretend to open it or push /daily-flow-setup yet.
-  $step1 = 'Install Microsoft Scout on this machine (the dashboard is open, but the team needs Scout). Microsoft employees: get it from https://aka.ms/clawpilot'
+  $step1 = 'Install Microsoft Scout on this machine (the dashboard is open, but the team needs Scout). Microsoft employees: get it from your internal aka.ms site, not the public link.'
   $step2 = 'After Scout is installed and open, run the install again so the team skills load into Scout.'
   $step3 = 'Then open Scout, click the chat box, type /daily-flow-setup and press Enter.'
   $copied = $false

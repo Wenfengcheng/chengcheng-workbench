@@ -953,8 +953,33 @@ function renderFirstRunBanner() {
   el.innerHTML = `<strong>${escapeHtml(title)}</strong><span>${escapeHtml(body)}</span>`;
 }
 
+function renderAutomationBanner() {
+  const el = $("automationBanner");
+  if (!el) return;
+  const health = state.automationHealth;
+  // readable=false means Scout's automations file was not found or not parseable.
+  // That is expected on some builds, so say nothing rather than raise a false alarm.
+  if (!health || !health.readable || health.healthy) {
+    el.hidden = true;
+    return;
+  }
+  const off = (health.disabled || []).concat(health.missing || []);
+  const label = off.map((name) => name.replace(/^Daily Flow /, "")).join(", ");
+  const isMissing = (health.missing || []).length > 0;
+  const title = off.length === 1
+    ? "One of your automations is switched off"
+    : `${off.length} of your automations are switched off`;
+  const body = isMissing
+    ? `Your team is not running ${label}. A missing or paused automation does nothing, so the board stops updating. Re-run /daily-flow-setup to put them back.`
+    : `Your team is not running ${label}. A paused automation does nothing, so the board stops updating. Switch it back on in Scout under Automations.`;
+  el.hidden = false;
+  el.className = "first-run-banner warn";
+  el.innerHTML = `<strong>${escapeHtml(title)}</strong><span>${escapeHtml(body)}</span>`;
+}
+
 function render() {
   renderFirstRunBanner();
+  renderAutomationBanner();
   renderMetrics();
   renderEmployees();
   renderOnboardingCards();

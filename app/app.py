@@ -326,7 +326,7 @@ ATTENTION_MAJOR_SWEEP_INSTRUCTIONS = f"""Run the broadest possible private Daily
 Start by posting status='in_progress' to /api/jobs/{{jobId}} with a concise status pulse that says Major is running a broad sweep across Daily Flow app state, Outlook email, Inbox calendar invites, calendar/schedule, Teams signals, WorkIQ/research context, drafts/results, blockers, meetings to prepare for today/tomorrow, and impact highlights.
 
 Required signal sources and what to look for:
-1. Daily Flow app state: GET /api/state. Inspect pending approvals, active/queued/blocked jobs, completed jobs with missing result links, Major chat threads needing replies, todayActivity, impactLedger, and stale or failed work. Use GET /api/impact-ledger when reviewing the full body-of-work history.
+1. Daily Flow app state: GET /api/state?view=agent (the lean projection built for automations; never the default /api/state, which carries the full completed-job and event history and costs many times more to read). Inspect pending approvals, activeJobs, Major chat threads needing replies, todayActivity, impactLedgerSummary, and stale or failed work. Use GET /api/impact-ledger when you genuinely need the full body-of-work history, and GET /api/activity-log for the full event log.
 2. Major chat and employee-work jobs: process queued dashboard-chat/employee-work jobs. Route internally only to configured employees and report all visible progress/results back through Major in the same thread.
 3. RSVP jobs: execute only dashboard-approved calendar-rsvp jobs exactly as instructed. Keep RSVP comments blank or generic. After a successful accept RSVP, delete only the handled invite email from Inbox.
 4. Outlook Inbox email signals: scan recent Inbox email for urgent/high-importance messages, unread messages that look actionable, customer/client requests, explicit asks, deadlines, promised follow-ups, attachments needing review, and messages that require a reply, research, scheduling, or content creation. FIRST classify each Inbox message as either a plain email or a calendar/meeting message, and route them differently. A message is a calendar/meeting message when its Graph type is an event message (message['@odata.type'] contains 'eventMessage', or meetingMessageType is set such as meetingRequest/meetingCancelled/meetingAccepted/meetingTentativelyAccepted/meetingDeclined), or its messageClass starts with 'IPM.Schedule', or it carries Exchange meeting headers (X-MS-Exchange-Calendar-Originator-Id, EE_MeetingMessage). Time-off / status blocks sent as appointments (subjects like 'Emily DTO', 'Sarah OOF', 'Raj PTO', 'Out of Office', invitation/cancellation/updated subjects) are calendar messages, NOT email. Route every calendar/meeting message to /api/inbox-invites (see item 5); never POST it as sourceType='email'. Only route genuine non-meeting email to /api/review-signals. For every actionable plain email, POST /api/review-signals with sourceType='email', subject, sender/from, receivedAt, sourceId (the Outlook/Graph message id), sourceUrl (the email's Graph webLink so the user can open the original in Outlook), importance, isRead, hasAttachments, signalType, priority, summary, and recommendation. When available also include messageClass and meetingMessageType so the server can verify the classification. Evidence-based lifecycle: cards no longer disappear just because a later sweep omits them, so you must signal resolution explicitly. When you have fully enumerated actionable Inbox email this sweep, POST that batch with reconcile=true, coveredTypes=["email"], and completeSnapshot=true so any email card whose sourceId is no longer present is treated as handled-at-source and retired. If you cannot guarantee a complete enumeration, instead pass resolvedIds=[sourceId,...] listing only the specific emails you confirmed were deleted/handled, and omit completeSnapshot. Never rely on omission alone to clear a card. Create private drafts/tasks/approvals as appropriate; do not send externally. Do not classify explicit asks such as "do you have instructions", "can you send", "please review", "need by", or "follow up" as non-actionable. If the user rejects an email approval, queue deletion of that exact email only.
@@ -3727,6 +3727,172 @@ def _trim_terminal_job_instructions(jobs: list[dict[str, Any]], limit: int = 280
                 job["instructions"] = instr[:limit] + " …[trimmed in state payload]"
 
 
+_ACTIONABLE_JOB_STATUSES = {"queued", "in_progress"}
+
+# Job types the workers are known to execute. Deliberately advisory: the gate
+# reports every pending job regardless, and only tags which ones match. An
+# unknown type must never be filtered out here -- a false positive costs one
+# cheap run, a false negative silently drops work the user approved.
+_KNOWN_JOB_TYPES = {
+    "manual-signal-sweep", "dashboard-chat", "employee-work",
+    "email-action", "teams-action", "calendar-rsvp", "email-review",
+    "impact-highlight", "send-draft",
+}
+
+
+def get_gate() -> dict[str, Any]:
+    """The cheapest possible 'is there anything to do?' answer.
+
+    The interval worker asks this on every run and the honest answer is
+    almost always no. Answering it from /api/state meant shipping the whole
+    payload, most of it completed-job history, for a question a few hundred
+    bytes can settle. Since an automation pays for every token it reads, that
+    made the no-op case the most expensive thing the worker did. Job ids and
+    types are included so a run that does have work can go straight to
+    /api/jobs/{id} without fetching state at all.
+    """
+    with connect() as db:
+        pending = rows(db.execute(
+            "SELECT id, type, status, employee, title, priority, created_at "
+            "FROM jobs WHERE status IN ('queued','in_progress') "
+            "ORDER BY created_at"
+        ))
+        blocked = db.execute(
+            "SELECT COUNT(*) n FROM jobs WHERE status = 'blocked'"
+        ).fetchone()["n"]
+        approvals = db.execute(
+            "SELECT COUNT(*) n FROM approvals WHERE status = 'pending'"
+        ).fetchone()["n"]
+    unknown = sorted({(job.get("type") or "") for job in pending}
+                     - _KNOWN_JOB_TYPES)
+    return {
+        # Any pending job means work. Classification is the caller's problem.
+        "hasWork": bool(pending),
+        "pendingJobs": pending,
+        "pendingCount": len(pending),
+        "unrecognisedTypes": unknown,
+        "blockedJobs": blocked,
+        "pendingApprovals": approvals,
+        "serverTime": utc_now(),
+    }
+
+
+_REQUIRED_AUTOMATIONS = (
+    "Daily Flow Morning Brief",
+    "Daily Flow Evening Wrap-up",
+    "Daily Flow Continuous Work Pulse",
+    "Daily Flow Attention Major Trigger",
+)
+
+# Scout's own automations file. The data folder name varies by build, which is
+# why this mirrors the SKILL_ROOTS candidate list rather than assuming .scout.
+SCOUT_AUTOMATION_FILES = [
+    Path.home() / _root_dir / "m-automations" / "automations.json"
+    for _root_dir in (".scout", ".copilot", ".copilot-cloud", ".copilot-dev")
+]
+
+
+def get_automation_health() -> dict[str, Any]:
+    """Report which of the four required automations are switched off.
+
+    A paused automation does nothing, and the only symptom is a board that
+    quietly stops updating, which is easy to mistake for a quiet day. Scout
+    owns the on/off state, so read it from Scout's own file instead of
+    inferring it from app activity.
+
+    Every failure path here is non-fatal and reported as readable=False. The
+    file belongs to another program, its folder name differs between Scout
+    builds, and some builds encrypt it. A dashboard that broke because an
+    optional file outside the app was missing would be worse than one that
+    simply does not show this particular warning.
+    """
+    for path in SCOUT_AUTOMATION_FILES:
+        try:
+            if not path.is_file():
+                continue
+            # utf-8-sig, not utf-8: a BOM is legal here and some writers add one,
+            # and plain utf-8 turns that into a parse error that would silently
+            # disable this whole check.
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+        except Exception:
+            continue
+        # Current builds store a top-level array. Accept the object form too so
+        # a future wrapper key does not silently turn every automation "missing".
+        entries = data if isinstance(data, list) else data.get("automations")
+        if not isinstance(entries, list):
+            continue
+        by_name = {
+            str(item.get("name") or ""): item
+            for item in entries if isinstance(item, dict)
+        }
+        disabled, missing = [], []
+        for name in _REQUIRED_AUTOMATIONS:
+            item = by_name.get(name)
+            if item is None:
+                missing.append(name)
+            elif not item.get("enabled"):
+                disabled.append(name)
+        return {
+            "readable": True,
+            "source": str(path),
+            "disabled": disabled,
+            "missing": missing,
+            "healthy": not disabled and not missing,
+            "enabledCount": len(_REQUIRED_AUTOMATIONS) - len(disabled) - len(missing),
+            "requiredCount": len(_REQUIRED_AUTOMATIONS),
+        }
+    return {
+        "readable": False,
+        "source": None,
+        "disabled": [],
+        "missing": [],
+        "healthy": True,
+        "enabledCount": 0,
+        "requiredCount": len(_REQUIRED_AUTOMATIONS),
+    }
+
+
+# Dropped from the agent view, with the reason each one is safe to drop.
+# Counts for all three are still reported under `omitted`, so a caller can
+# tell the difference between "nothing there" and "not sent".
+_AGENT_VIEW_DROP = {
+    "jobs": "only queued/in_progress are kept, as activeJobs",
+    "events": "todayActivity carries today's; full log at /api/activity-log",
+    "impactLedger": "summary only; full ledger at /api/impact-ledger",
+    "removedEmployees": "not used by any automation",
+}
+
+
+def to_agent_view(state: dict[str, Any]) -> dict[str, Any]:
+    """Shrink a full state payload to what an automation actually reads.
+
+    Built as a projection of get_state() rather than a second query path, so
+    the two can never disagree about the same facts -- a lean view that
+    quietly drifts from the real state would be worse than a large one.
+
+    The browser dashboard still gets the full payload; only callers that ask
+    for view=agent see this. Everything removed here is either available from
+    a dedicated endpoint or is history no run needs to re-read.
+    """
+    view = {k: v for k, v in state.items() if k not in _AGENT_VIEW_DROP}
+    jobs = state.get("jobs") or []
+    view["activeJobs"] = [job for job in jobs
+                          if job.get("status") in _ACTIONABLE_JOB_STATUSES]
+    ledger = state.get("impactLedger") or {}
+    view["impactLedgerSummary"] = {
+        key: len(value) if isinstance(value, list) else value
+        for key, value in ledger.items()
+    }
+    view["omitted"] = {
+        "jobs": len(jobs),
+        "events": len(state.get("events") or []),
+        "impactLedger": len(ledger),
+        "note": "view=agent. Full payload at /api/state, "
+                "full ledger at /api/impact-ledger.",
+    }
+    return view
+
+
 def get_state() -> dict[str, Any]:
     with connect() as db:
         expire_time_bound_approvals(db)
@@ -3834,6 +4000,7 @@ def get_state() -> dict[str, Any]:
             "recentSweeps": recent_sweep_runs,
             "sweepStats": sweep_summary,
             "workLedgerToday": work_today,
+            "automationHealth": get_automation_health(),
             "operatingLoop": OPERATING_LOOP,
             "decisionMemory": decision_memory_summary(db),
             "guardrails": build_guardrails(db),
@@ -4050,7 +4217,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/state":
-            self.send_json(get_state())
+            view = parse_qs(parsed.query).get("view", [""])[0].strip().lower()
+            state = get_state()
+            self.send_json(to_agent_view(state) if view == "agent" else state)
+            return
+        if parsed.path == "/api/gate":
+            self.send_json(get_gate())
             return
         if parsed.path == "/api/activity-log":
             self.send_json(get_activity_log())

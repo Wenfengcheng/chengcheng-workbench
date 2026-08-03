@@ -2,7 +2,7 @@
 
 Your own team of eight AI digital employees, running locally on Microsoft Scout.
 
-Version 4.2.1. See [CHANGELOG.md](CHANGELOG.md) for the full history.
+Version 4.3.0. See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 The Dream Team is a local command center plus a team of digital employees that run on [Microsoft Scout](https://learn.microsoft.com/en-us/microsoft-scout/). They watch your work signals, prep your meetings, draft your replies, keep a record of what you got done, and hold anything sensitive for your approval. It all runs on your own machine. Start with the built-in eight, add your own, or remove any of them except Major.
 
@@ -30,9 +30,9 @@ You can add your own employees or remove any of them except Major, so the roster
 
 ## Install it
 
-The easy way is to let Scout do the whole thing in one go. Open Microsoft Scout, start a chat, and if you can, set that chat's model to Claude Opus 4.8, which runs setup most reliably. Then paste this:
+The easy way is to let Scout do the whole thing in one go. Open Microsoft Scout, start a chat, and if you can, set that chat's model to Claude Opus 5, which runs setup most reliably. Then paste this:
 
-> Install The Dream Team from https://github.com/ShervinShaffie/dream-team-for-microsoft-scout. First, if this chat is not already on Claude Opus 4.8, tell me so I can switch to it before you continue, since it runs setup most reliably. Then read INSTALL-WITH-SCOUT.md in that repo and follow it exactly, including the stop conditions.
+> Install The Dream Team from https://github.com/ShervinShaffie/dream-team-for-microsoft-scout. First, if this chat is not already on Claude Opus 5, tell me so I can switch to it before you continue, since it runs setup most reliably. Then read INSTALL-WITH-SCOUT.md in that repo and follow it exactly, including the stop conditions.
 
 From there, Scout does everything in that same chat: it downloads the latest release, sets up the app, installs your team, switches on the background automations, and runs your first sweep so the dashboard fills with your real email, calendar, Teams, and meeting prep. It fixes common problems on its own, like missing Python or a busy port, and if it hits something it cannot solve, it stops and tells you plainly instead of looping.
 
@@ -49,7 +49,7 @@ You can override the choice with one click.
 
 ## Pick your model
 
-The wizard lets you choose the model your team runs on. The default is Claude Opus 4.8, which is what the team is tuned for, but you can pick any model your Scout offers, or choose Auto. If Opus 4.8 is not available on your machine, the wizard recommends the best alternative for you.
+The wizard lets you choose the model your team runs on. The default is Claude Opus 5, which is what the team is tuned for, but you can pick any model your Scout offers, or choose Auto. If Opus 5 is not available on your machine, the wizard recommends the best alternative for you.
 
 ## Your team
 

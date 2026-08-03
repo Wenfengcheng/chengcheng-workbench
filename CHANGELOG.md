@@ -18,12 +18,19 @@ Everything runs on your machine, and the team never sends anything to other peop
 
 ## Releases
 
+### 4.3.0
+
+- Cut what the background workers read, which is the main thing you pay for. The every-few-minutes worker used to pull your whole board just to find out whether anything needed doing, and on most runs the answer was no. It now asks a small question first, and that check is over 99 percent smaller than what it replaced. When a run does have work, it reads a trimmed view instead of the full one. That saving grows with your history, because what it leaves out is the completed-job and event backlog: on a fresh install there is barely any difference, and on a board with a few weeks of real use the trimmed view is roughly 85 to 90 percent smaller. What the team does has not changed, only how much it reads to decide. The dashboard in your browser still gets everything.
+- Slowed the Attention Major worker from every minute to every five minutes. Running it every minute was a large share of the running cost, and the button it serves does not get pressed sixty times an hour. Five minutes still feels immediate when you press it. You can set it back to every minute in Scout if you prefer the old behavior.
+- Moved the team onto Claude Opus 5, which is what it is now tuned for. Setup still shows whatever models your Scout offers and falls back to the best one available, so nothing breaks if you do not have Opus 5 yet.
+- Added a warning on the dashboard when any of the four automations is switched off or missing. A paused automation does nothing, and until now the only sign was a board that quietly stopped updating, which is easy to mistake for a quiet day. The dashboard now reads your Scout automation settings and names the ones that are off.
+
 ### 4.2.1
 
 - Made install and setup one smooth flow in a single chat. Scout now installs the app and then finishes setup right there, so you no longer have to quit Scout, reopen it, and paste a command. When Scout says it is done, your team is on and your dashboard is already showing your real day.
 - Fixed the empty-dashboard-after-setup problem at its root. Setup now runs your first sweep itself instead of handing it to a background timer that could not run yet, so the board actually fills before Scout finishes. It also switches the four automations on and double-checks they are on, since a paused automation does nothing.
 - Made the restart optional and clearly labeled as such. The team is live without it. Restarting Scout later only registers the `/daily-flow-setup` and `/daily-flow-team` shortcuts for future use.
-- Pointed Microsoft employees to the right place to get Scout. The prerequisites now note that Microsoft employees install Microsoft Scout from https://aka.ms/clawpilot, while everyone else uses the public link.
+- Pointed Microsoft employees to the right place to get Scout. The prerequisites now note that Microsoft employees install Microsoft Scout from an internal aka.ms site, while everyone else uses the public link.
 
 ### 4.2.0
 
