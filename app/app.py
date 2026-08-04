@@ -3777,6 +3777,42 @@ def get_gate() -> dict[str, Any]:
     }
 
 
+def get_job_detail(job_id: str) -> dict[str, Any] | None:
+    """Everything a worker needs to run one job, without reading /api/state.
+
+    The gate hands out job ids precisely so a run that has work can fetch just
+    that job, which only holds if the id actually resolves to something. This
+    returns the full row -- including instructions, the part the worker
+    executes -- plus the chat thread for dashboard-chat jobs so progress can be
+    posted back in context. Returns None when the id is unknown.
+    """
+    with connect() as db:
+        row = db.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        if not row:
+            return None
+        job = dict(row)
+        thread: dict[str, Any] | None = None
+        messages: list[dict[str, Any]] = []
+        thread_id = job.get("thread_id")
+        if thread_id:
+            thread_row = db.execute(
+                "SELECT * FROM chat_threads WHERE id = ?", (thread_id,)
+            ).fetchone()
+            thread = dict(thread_row) if thread_row else None
+            messages = rows(db.execute(
+                "SELECT * FROM chat_messages WHERE thread_id = ? "
+                "ORDER BY created_at LIMIT 50",
+                (thread_id,),
+            ))
+    return {
+        "ok": True,
+        "job": job,
+        "thread": thread,
+        "messages": messages,
+        "serverTime": utc_now(),
+    }
+
+
 _REQUIRED_AUTOMATIONS = (
     "Daily Flow Morning Brief",
     "Daily Flow Evening Wrap-up",
@@ -4224,6 +4260,17 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/gate":
             self.send_json(get_gate())
             return
+        if parsed.path.startswith("/api/jobs/"):
+            parts = parsed.path.strip("/").split("/")
+            if len(parts) != 3 or not parts[2]:
+                self.send_json({"ok": False, "error": "invalid job route"}, HTTPStatus.NOT_FOUND)
+                return
+            detail = get_job_detail(parts[2])
+            if detail is None:
+                self.send_json({"ok": False, "error": "job not found"}, HTTPStatus.NOT_FOUND)
+                return
+            self.send_json(detail)
+            return
         if parsed.path == "/api/activity-log":
             self.send_json(get_activity_log())
             return
@@ -4280,7 +4327,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/attention-major":
                 data = self.read_json()
-                source = str(data.get("source") or "automation")
+                # Dashboard-only endpoint, so an unsourced POST is a dashboard press.
+                # No automation queues sweeps here; defaulting to "automation" would
+                # mislabel a real button press as a duplicated background sweep.
+                source = str(data.get("source") or "dashboard")
                 force = bool(data.get("force"))
                 with connect() as db:
                     result = queue_attention_major(db, source, force=force)

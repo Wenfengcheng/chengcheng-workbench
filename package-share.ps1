@@ -44,6 +44,27 @@ try {
   if ($notesBody) { [System.IO.File]::WriteAllText($NotesFile, $notesBody) }
 } catch {}
 
+# Release consistency gate. The version lives in manifest.json, but it is also stated in
+# README.md and needs a matching CHANGELOG section (which is where the GitHub Release notes
+# come from). A version bump that misses one of those ships a package that misreports itself,
+# so fail the build here rather than publish it.
+$readmePath = Join-Path $Root 'README.md'
+if (Test-Path $readmePath) {
+  $readmeText = Get-Content -Raw $readmePath
+  $readmeMatch = [regex]::Match($readmeText, '(?m)^Version\s+([0-9]+\.[0-9]+\.[0-9]+)\s*\.')
+  if (-not $readmeMatch.Success) {
+    throw "README.md has no 'Version X.Y.Z.' line to check against manifest.json ($Version)."
+  }
+  if ($readmeMatch.Groups[1].Value -ne $Version) {
+    throw ("Version mismatch: manifest.json says {0} but README.md says {1}. Update README.md before publishing." -f $Version, $readmeMatch.Groups[1].Value)
+  }
+  Write-Host ("[ok] README.md version matches manifest ({0})." -f $Version) -ForegroundColor Green
+}
+if (-not (Test-Path $NotesFile)) {
+  throw ("CHANGELOG.md has no '### {0}' section, so the release would publish without notes. Add it before publishing." -f $Version)
+}
+Write-Host ("[ok] CHANGELOG.md has a section for {0}." -f $Version) -ForegroundColor Green
+
 # Allowlist of top-level items to ship. Anything not listed is ignored.
 $include = @('INSTALL-WITH-SCOUT.md','install.ps1','preflight.ps1','verify-clean.ps1','package-share.ps1','README.md','CHANGELOG.md','LICENSE','manifest.json','.gitignore','app','skills','automations')
 # Runtime/local data that must never ship, pruned from the staged copy.

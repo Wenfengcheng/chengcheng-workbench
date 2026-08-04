@@ -18,6 +18,15 @@ Everything runs on your machine, and the team never sends anything to other peop
 
 ## Releases
 
+### 4.3.1
+
+- Fixed approved work sitting in the queue instead of running. When you pressed **Attention Major**, or approved something in the inbox, the request was recorded correctly but the background worker could not read it back, so it waited rather than starting. It now picks the work up on its next check, which is within five minutes.
+- Stopped the background sweep from running twice. The hourly pass across your email, Teams, and calendar was also handing a second copy of the same sweep to the five-minute worker, so the same work was done twice and billed twice. The hourly pass now does it once, on its own. Nothing about what gets scanned has changed.
+- Slowed that hourly pass from every 30 minutes to every hour. Together with the duplicate fix, a normal day goes from 96 full sweeps to 24. The **Attention Major** button is still there when you want the board refreshed immediately, and you can set the pulse back to 30 minutes in Scout if you prefer.
+- Fixed Send on a prepared draft. When you clicked Send on something the team had written for you, the worker was not told that counted as work it should carry out, so the item could sit unsent. It now delivers exactly what you approved, without rewriting it.
+- Wrote down the rules the background workers actually follow. The internal notes the team reads had drifted from how the app really behaves, which is what allowed the duplicate sweep and the stuck queue to go unnoticed through a release. They now describe the real behavior, including that a pending job is always your work and should never be skipped for looking unfamiliar.
+- Corrected the setup notes, which still described the old timings from before 4.3.0.
+
 ### 4.3.0
 
 - Cut what the background workers read, which is the main thing you pay for. The every-few-minutes worker used to pull your whole board just to find out whether anything needed doing, and on most runs the answer was no. It now asks a small question first, and that check is over 99 percent smaller than what it replaced. When a run does have work, it reads a trimmed view instead of the full one. That saving grows with your history, because what it leaves out is the completed-job and event backlog: on a fresh install there is barely any difference, and on a board with a few weeks of real use the trimmed view is roughly 85 to 90 percent smaller. What the team does has not changed, only how much it reads to decide. The dashboard in your browser still gets everything.
