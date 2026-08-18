@@ -10,7 +10,7 @@ Windows only. The app and the install run on Windows 10 and 11. They will not ru
 
 Private by design. Everything runs on 127.0.0.1 and stores to a local database on your own machine.
 
-Not an official Microsoft product. This is a personal project, shared as is for personal and demo use. It is not built, endorsed, or supported by Microsoft, and it is not meant for production. See the Disclaimer and license section below.
+Not an official Microsoft product. This is a personal project, shared as is for personal and demo use. It is not built, endorsed, or supported by Microsoft, and it is not meant for production. Make sure you review how Scout bills for usage prior to running. See the Disclaimer and license section below.
 
 ## What you get without signing in
 
