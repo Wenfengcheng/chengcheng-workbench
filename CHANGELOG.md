@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0-shadow — Scout Azure Cost runtime package
+
+- Added a create-only, credential-free Azure Cost package manifest and packager for the canonical Scout Runtime Root.
+- Added fail-closed Scout preflight checks for Python, `requests`, Azure CLI, package completeness, runtime isolation, and three independent Azure profiles.
+- Added a notification-silent cost Shadow wrapper with package-local immutable evidence output.
+- Created the first independent package at `~/.scout/runtime/packages/chengcheng-cost-monitor`; authentication remains intentionally blocked until Scout-owned Azure profiles are provisioned.
+
+
 ## Chengcheng Workbench 0.4.1 (unreleased)
 
 - Hardened remote control with mandatory request IDs, Scout Teams Bot source binding, personal-chat restriction, and explicit confirmation for decisions.

@@ -44,9 +44,11 @@
       "sourceSchedule": "45 9 * * * Asia/Shanghai",
       "sourceEntrypoint": "fy27-cost-review/monitoring/run-pbi-cost-command-cron.py",
       "scoutAutomation": "程程工作台 - Azure 成本每日 Shadow",
-      "migrationState": "READY_FOR_PACKAGE_RELOCATION_TEST",
-      "blockers": ["dependent scripts/data registry/history must move as one runtime package", "Azure auth must use Scout-specific config", "notification destination changes from WeChat to Teams/workbench"],
-      "cutoverSideEffects": ["owner notification"]
+      "migrationState": "PACKAGED_AUTH_BLOCKED",
+      "packagePath": "{{SCOUT_RUNTIME_ROOT}}/runtime/packages/chengcheng-cost-monitor",
+      "packageValidation": "13 credential-free source files copied create-only; preflight blocks until three Scout-owned Azure profiles exist",
+      "blockers": ["provision independent Scout Azure CLI profiles for pbi-cost, la and compute", "run first notification-silent shadow execution", "notification destination changes from legacy delivery to Scout Teams Bot at cutover"],
+      "cutoverSideEffects": ["Scout Teams Bot owner notification"]
     },
     {
       "id": "meeting-scheduler",

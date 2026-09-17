@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "packageId": "chengcheng-cost-monitor",
+  "version": "0.5.0-shadow",
+  "runtimeOwner": "Microsoft Scout",
+  "entrypoint": "fy27-cost-review/monitoring/run-pbi-cost-command-cron.py",
+  "files": [
+    "fy27-cost-review/monitoring/run-pbi-cost-command-cron.py",
+    "fy27-cost-review/monitoring/pbi-cost-daily-monitor.py",
+    "fy27-cost-review/monitoring/verify-operationalinsights-daily.py",
+    "fy27-cost-review/monitoring/verify-provider-cost-models-daily.py",
+    "fy27-cost-review/monitoring/pbi-cost-daily-snapshots.csv",
+    "fy27-cost-review/monitoring/pbi-cost-provider-snapshots.csv",
+    "fy27-cost-review/monitoring/operationalinsights-cost-verification.csv",
+    "fy27-cost-review/monitoring/provider-cost-model-verification.csv",
+    "fy27-cost-review/monitoring/lifecycle-daily-check.csv",
+    "fy27-cost-review/monitoring/pbi-cost-trend.html",
+    "fy27-cost-review/calculate-provider-cost.py",
+    "fy27-cost-review/provider-cost-formula-registry.json",
+    "fy27-cost-review/data-la/operationalinsights_cost_model.py"
+  ],
+  "generatedDirectories": [
+    "fy27-cost-review/monitoring/provider-model-evidence",
+    "runtime/evidence/cost"
+  ],
+  "neverPackage": [
+    "azure-config",
+    ".env",
+    "credentials.json",
+    "*.token",
+    "*.secret",
+    "*.key"
+  ],
+  "runtimePrerequisites": {
+    "pythonMinimum": "3.9",
+    "pythonModules": ["requests"],
+    "commands": ["az.cmd"],
+    "azureProfiles": [
+      "fy27-cost-review/monitoring/azure-config/pbi-cost/azureProfile.json",
+      "fy27-cost-review/monitoring/azure-config/la/azureProfile.json",
+      "fy27-cost-review/monitoring/azure-config/compute/azureProfile.json"
+    ],
+    "profileProvisioning": "Create each profile inside the Scout package through a separately approved interactive Azure login. Never copy an OpenClaw Azure profile."
+  },
+  "shadowPolicy": {
+    "notifications": false,
+    "externalWrites": false,
+    "resourceChanges": false,
+    "allowed": [
+      "Power BI read",
+      "Azure ARM read",
+      "Log Analytics query",
+      "package-local CSV, JSON, HTML and evidence writes"
+    ]
+  }
+}
