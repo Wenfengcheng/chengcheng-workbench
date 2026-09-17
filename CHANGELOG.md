@@ -10,6 +10,7 @@
 - Created the independent v0.5.1 package at `~/.scout/runtime/packages/chengcheng-cost-monitor-v0.5.1`; no Azure token cache or profile is copied into it.
 - Completed the first notification-silent GREEN Shadow run on 2026-09-17: MTD $38,555.15, OperationalInsights PASS, and Storage/Search/CDN/AML canonical reconciliation BASELINE.
 - Added a deterministic evidence publisher that projects the latest safe Scout cost result into the Workbench Azure Cost lane and verifies the API read-back.
+- Restyled the Workbench in a CreateEval-inspired Microsoft/Azure product language: light-first canvas, Azure blue actions, slate hierarchy, compact 72px app header, 1280px workspace, 8–9px cards, quiet borders and reduced motion.
 
 
 ## Chengcheng Workbench 0.4.1 (unreleased)
