@@ -838,6 +838,23 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL DEFAULT ''
             );
 
+            -- Current operational facts for the five Chengcheng Workbench lanes.
+            -- This is snapshot state, not an event log: updates replace the current
+            -- projection while every source system remains authoritative.
+            CREATE TABLE IF NOT EXISTS ops_lane_snapshots (
+                lane TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'unknown',
+                headline TEXT NOT NULL DEFAULT '',
+                summary TEXT NOT NULL DEFAULT '',
+                metrics_json TEXT NOT NULL DEFAULT '[]',
+                items_json TEXT NOT NULL DEFAULT '[]',
+                evidence_json TEXT NOT NULL DEFAULT '[]',
+                source TEXT NOT NULL DEFAULT '',
+                observed_at TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, created_at);
             CREATE INDEX IF NOT EXISTS idx_jobs_thread ON jobs(thread_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_messages_thread ON chat_messages(thread_id, created_at);
@@ -3801,6 +3818,79 @@ def get_job_detail(job_id: str) -> dict[str, Any] | None:
     }
 
 
+OPS_LANES: dict[str, dict[str, str]] = {
+    "security": {"title": "S360 安全", "owner": "Riley"},
+    "release": {"title": "部署发布", "owner": "Riley"},
+    "pipeline": {"title": "Pipeline / 故障", "owner": "Dash"},
+    "cost": {"title": "Azure 成本", "owner": "Dash"},
+    "collaboration": {"title": "会议与待办", "owner": "Mina"},
+}
+OPS_LANE_STATUSES = {"normal", "attention", "blocked", "waiting_approval", "in_progress", "verified", "unknown"}
+
+
+def _safe_json_list(value: str) -> list[Any]:
+    try:
+        parsed = json.loads(value or "[]")
+        return parsed if isinstance(parsed, list) else []
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+
+
+def get_ops_lanes() -> dict[str, Any]:
+    """Return all five lanes in stable display order, including empty state."""
+    with connect() as db:
+        current = {row["lane"]: dict(row) for row in db.execute("SELECT * FROM ops_lane_snapshots")}
+    lanes = []
+    for lane, config in OPS_LANES.items():
+        item = current.get(lane, {})
+        lanes.append({
+            "lane": lane,
+            "title": config["title"],
+            "owner": config["owner"],
+            "status": item.get("status") or "unknown",
+            "headline": item.get("headline") or "等待首次数据刷新",
+            "summary": item.get("summary") or "尚未收到该工作面的实时快照。",
+            "metrics": _safe_json_list(item.get("metrics_json", "[]")),
+            "items": _safe_json_list(item.get("items_json", "[]")),
+            "evidence": _safe_json_list(item.get("evidence_json", "[]")),
+            "source": item.get("source") or "",
+            "observedAt": item.get("observed_at") or "",
+            "updatedAt": item.get("updated_at") or "",
+        })
+    return {"lanes": lanes, "serverTime": utc_now()}
+
+
+def upsert_ops_lane(data: dict[str, Any]) -> dict[str, Any]:
+    """Store one evidence-backed current snapshot for an operational lane."""
+    lane = str(data.get("lane") or "").strip().lower()
+    if lane not in OPS_LANES:
+        raise ValueError(f"lane must be one of: {', '.join(OPS_LANES)}")
+    status = str(data.get("status") or "unknown").strip().lower()
+    if status not in OPS_LANE_STATUSES:
+        raise ValueError(f"status must be one of: {', '.join(sorted(OPS_LANE_STATUSES))}")
+    metrics = data.get("metrics") or []
+    items = data.get("items") or []
+    evidence = data.get("evidence") or []
+    if not all(isinstance(value, list) for value in (metrics, items, evidence)):
+        raise ValueError("metrics, items, and evidence must be arrays")
+    now = utc_now()
+    observed_at = str(data.get("observedAt") or now)
+    with connect() as db:
+        db.execute(
+            "INSERT INTO ops_lane_snapshots(lane,title,status,headline,summary,metrics_json,items_json,evidence_json,source,observed_at,updated_at) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(lane) DO UPDATE SET "
+            "title=excluded.title,status=excluded.status,headline=excluded.headline,summary=excluded.summary,"
+            "metrics_json=excluded.metrics_json,items_json=excluded.items_json,evidence_json=excluded.evidence_json,"
+            "source=excluded.source,observed_at=excluded.observed_at,updated_at=excluded.updated_at",
+            (lane, OPS_LANES[lane]["title"], status, str(data.get("headline") or "")[:160],
+             str(data.get("summary") or "")[:1200], json.dumps(metrics, ensure_ascii=False),
+             json.dumps(items, ensure_ascii=False), json.dumps(evidence, ensure_ascii=False),
+             str(data.get("source") or "")[:200], observed_at, now),
+        )
+        touch_version(db)
+    return next(item for item in get_ops_lanes()["lanes"] if item["lane"] == lane)
+
+
 _REQUIRED_AUTOMATIONS = (
     "Daily Flow Morning Brief",
     "Daily Flow Evening Wrap-up",
@@ -4248,6 +4338,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/gate":
             self.send_json(get_gate())
             return
+        if parsed.path == "/api/ops-lanes":
+            self.send_json(get_ops_lanes())
+            return
         if parsed.path.startswith("/api/jobs/"):
             parts = parsed.path.strip("/").split("/")
             if len(parts) != 3 or not parts[2]:
@@ -4300,6 +4393,11 @@ class Handler(BaseHTTPRequestHandler):
                         str(data.get("reviewRubric", "")),
                     )
                 self.send_json({"ok": True, "careerProfile": profile})
+                return
+            if parsed.path == "/api/ops-lanes":
+                data = self.read_json()
+                lane = upsert_ops_lane(data)
+                self.send_json({"ok": True, "lane": lane})
                 return
             if parsed.path == "/api/chat":
                 data = self.read_json()
