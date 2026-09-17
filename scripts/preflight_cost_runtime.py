@@ -11,6 +11,13 @@ import subprocess
 import sys
 
 
+def az_json(*args: str):
+    result = subprocess.run(["az.cmd", *args], text=True, capture_output=True, encoding="utf-8")
+    if result.returncode != 0:
+        raise RuntimeError((result.stderr or result.stdout).strip())
+    return json.loads(result.stdout)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--package-root", required=True, type=pathlib.Path)
@@ -25,33 +32,39 @@ def main() -> int:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     minimum = tuple(int(x) for x in manifest["runtimePrerequisites"]["pythonMinimum"].split("."))
-    if sys.version_info[:2] < minimum:
-        raise RuntimeError(f"Python {minimum[0]}.{minimum[1]}+ required")
     missing_modules = [name for name in manifest["runtimePrerequisites"]["pythonModules"] if importlib.util.find_spec(name) is None]
     missing_commands = [name for name in manifest["runtimePrerequisites"]["commands"] if shutil.which(name) is None]
     missing_files = [name for name in manifest["files"] if not (root / name).is_file()]
-    missing_profiles = [name for name in manifest["runtimePrerequisites"]["azureProfiles"] if not (root / name).is_file()]
     problems = []
+    if sys.version_info[:2] < minimum: problems.append(f"Python {minimum[0]}.{minimum[1]}+ required")
     if missing_modules: problems.append(f"missing Python modules: {missing_modules}")
     if missing_commands: problems.append(f"missing commands: {missing_commands}")
     if missing_files: problems.append(f"missing package files: {missing_files}")
-    if missing_profiles: problems.append(f"missing Scout-owned Azure profiles: {missing_profiles}")
 
-    if not missing_profiles and not args.skip_azure_session_check:
-        az_command = manifest["runtimePrerequisites"]["commands"][0]
-        for profile in manifest["runtimePrerequisites"]["azureProfiles"]:
-            config_dir = (root / profile).parent
-            result = subprocess.run(
-                [az_command, "account", "show", "-o", "none"],
-                env={**__import__("os").environ, "AZURE_CONFIG_DIR": str(config_dir)},
-                text=True, capture_output=True, encoding="utf-8"
-            )
-            if result.returncode != 0:
-                problems.append(f"Azure session unavailable for {config_dir}")
+    checked = []
+    if not problems and not args.skip_azure_session_check:
+        context = manifest["runtimePrerequisites"]["azureCliContext"]
+        checks = [
+            ("AzureCloud", context["globalSubscription"]),
+            *[("AzureChinaCloud", subscription) for subscription in context["chinaSubscriptions"]],
+        ]
+        try:
+            for cloud, subscription in checks:
+                subprocess.run(["az.cmd", "cloud", "set", "--name", cloud], check=True, text=True, capture_output=True, encoding="utf-8")
+                subprocess.run(["az.cmd", "account", "set", "--subscription", subscription], check=True, text=True, capture_output=True, encoding="utf-8")
+                account = az_json("account", "show", "--query", "{name:name,id:id,environmentName:environmentName}", "-o", "json")
+                if account["environmentName"] != cloud:
+                    raise RuntimeError(f"Cloud mismatch for {subscription}: {account}")
+                checked.append(f"{cloud}/{account['name']}")
+        except Exception as exc:
+            problems.append(f"Azure CLI login/context unavailable: {exc}")
+        finally:
+            subprocess.run(["az.cmd", "cloud", "set", "--name", "AzureChinaCloud"], text=True, capture_output=True, encoding="utf-8")
+            subprocess.run(["az.cmd", "account", "set", "--subscription", context["chinaSubscriptions"][0]], text=True, capture_output=True, encoding="utf-8")
     if problems:
         print("BLOCKED: " + " | ".join(problems))
         return 3
-    print(f"PASS: Scout cost runtime preflight ({len(manifest['files'])} files, isolated profiles, no OpenClaw path)")
+    print(f"PASS: Scout cost runtime preflight ({len(manifest['files'])} files; host Azure CLI contexts: {', '.join(checked)})")
     return 0
 
 

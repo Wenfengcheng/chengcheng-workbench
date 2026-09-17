@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "packageId": "chengcheng-cost-monitor",
-  "version": "0.5.0-shadow",
+  "version": "0.5.1-shadow",
   "runtimeOwner": "Microsoft Scout",
   "entrypoint": "fy27-cost-review/monitoring/run-pbi-cost-command-cron.py",
   "files": [
@@ -35,12 +35,15 @@
     "pythonMinimum": "3.9",
     "pythonModules": ["requests"],
     "commands": ["az.cmd"],
-    "azureProfiles": [
-      "fy27-cost-review/monitoring/azure-config/pbi-cost/azureProfile.json",
-      "fy27-cost-review/monitoring/azure-config/la/azureProfile.json",
-      "fy27-cost-review/monitoring/azure-config/compute/azureProfile.json"
-    ],
-    "profileProvisioning": "Create each profile inside the Scout package through a separately approved interactive Azure login. Never copy an OpenClaw Azure profile."
+    "azureCliContext": {
+      "authentication": "Use the host Azure CLI login directly; do not copy token caches or profiles into the package.",
+      "globalSubscription": "Win In China OfficePLUS Global",
+      "chinaSubscriptions": [
+        "c6dbcbd4-85b4-485e-acd4-7b018cd23e6d",
+        "187a032c-caf1-4f22-bf1d-b01e42d11396"
+      ],
+      "rule": "Every deterministic step must run az cloud set and az account set before requesting tokens or querying resources."
+    }
   },
   "shadowPolicy": {
     "notifications": false,

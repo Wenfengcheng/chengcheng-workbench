@@ -51,12 +51,10 @@ def main() -> int:
         shutil.copy2(src, target)
     for relative_text in manifest["generatedDirectories"]:
         (destination / relative_text).mkdir(parents=True, exist_ok=True)
-    for profile_text in manifest["runtimePrerequisites"]["azureProfiles"]:
-        (destination / profile_text).parent.mkdir(parents=True, exist_ok=True)
     (destination / "package-manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    print(f"CREATED: Scout cost package at {destination}; Azure profiles intentionally absent")
+    print(f"CREATED: Scout cost package at {destination}; uses host Azure CLI login with explicit cloud/account selection")
     return 0
 
 

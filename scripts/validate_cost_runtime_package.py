@@ -14,7 +14,10 @@ assert manifest["shadowPolicy"]["externalWrites"] is False
 assert manifest["shadowPolicy"]["resourceChanges"] is False
 assert all(".concordia-client" not in item.lower() for item in manifest["files"])
 assert all("azure-config" not in item.lower() for item in manifest["files"])
-assert len(manifest["runtimePrerequisites"]["azureProfiles"]) == 3
+context = manifest["runtimePrerequisites"]["azureCliContext"]
+assert context["authentication"].startswith("Use the host Azure CLI login")
+assert len(context["chinaSubscriptions"]) == 2
+assert "cloud set" in context["rule"] and "account set" in context["rule"]
 for relative in ("scripts/package_cost_runtime.py", "scripts/preflight_cost_runtime.py", "jobs/cost-daily-shadow.py"):
     py_compile.compile(str(ROOT / relative), doraise=True)
 text = (ROOT / "jobs" / "cost-daily-shadow.ps1").read_text(encoding="utf-8")

@@ -44,10 +44,11 @@
       "sourceSchedule": "45 9 * * * Asia/Shanghai",
       "sourceEntrypoint": "fy27-cost-review/monitoring/run-pbi-cost-command-cron.py",
       "scoutAutomation": "程程工作台 - Azure 成本每日 Shadow",
-      "migrationState": "PACKAGED_AUTH_BLOCKED",
-      "packagePath": "{{SCOUT_RUNTIME_ROOT}}/runtime/packages/chengcheng-cost-monitor",
-      "packageValidation": "13 credential-free source files copied create-only; preflight blocks until three Scout-owned Azure profiles exist",
-      "blockers": ["provision independent Scout Azure CLI profiles for pbi-cost, la and compute", "run first notification-silent shadow execution", "notification destination changes from legacy delivery to Scout Teams Bot at cutover"],
+      "migrationState": "SHADOW_GREEN_1_OF_3",
+      "packagePath": "{{SCOUT_RUNTIME_ROOT}}/runtime/packages/chengcheng-cost-monitor-v0.5.1",
+      "packageValidation": "13 credential-free source files copied create-only; host Azure CLI Global/China contexts PASS; first notification-silent shadow run PASS on 2026-09-17",
+      "lastShadowEvidence": "runtime/evidence/cost/20260917T171131066814.json",
+      "blockers": ["complete two more consecutive notification-silent GREEN shadow runs", "notification destination changes from legacy delivery to Scout Teams Bot at cutover"],
       "cutoverSideEffects": ["Scout Teams Bot owner notification"]
     },
     {
