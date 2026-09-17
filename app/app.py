@@ -875,6 +875,17 @@ def init_db() -> None:
                 decision_note TEXT NOT NULL DEFAULT ''
             );
 
+            CREATE TABLE IF NOT EXISTS remote_control_audit (
+                request_id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                source TEXT NOT NULL,
+                conversation_type TEXT NOT NULL,
+                command TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                ok INTEGER NOT NULL,
+                response_json TEXT NOT NULL
+            );
+
             CREATE TRIGGER IF NOT EXISTS preserve_engineering_actions_delete
             BEFORE DELETE ON engineering_actions
             BEGIN
@@ -3986,8 +3997,8 @@ def decide_engineering_action(action_id: str, decision: str, note: str = "") -> 
     return _engineering_action(row)
 
 
-def remote_control(command: str) -> dict[str, Any]:
-    """Deterministic, non-executing command surface intended for Scout Teams Bot."""
+def _remote_control_result(command: str) -> dict[str, Any]:
+    """Parse one already-authenticated deterministic remote command."""
     text = " ".join(command.strip().split())
     lowered = text.lower()
     if lowered in {"状态", "status", "工作台状态"}:
@@ -4007,6 +4018,39 @@ def remote_control(command: str) -> dict[str, Any]:
                 "message": "决定已记录；执行器未启用，未执行任何工程操作。"}
     return {"ok": False, "kind": "help", "executionEnabled": False,
             "error": "unsupported command", "supported": ["状态", "待审批", "批准 <id>", "拒绝 <id>", "稍后 <id>"]}
+
+
+def remote_control(data: dict[str, Any]) -> dict[str, Any]:
+    """Teams-safe, idempotent wrapper around the deterministic command parser."""
+    command = str(data.get("command") or "").strip()
+    request_id = str(data.get("requestId") or "").strip()
+    source = str(data.get("source") or "").strip().lower()
+    conversation_type = str(data.get("conversationType") or "").strip().lower()
+    if not request_id:
+        return {"ok": False, "kind": "denied", "executionEnabled": False, "error": "requestId is required"}
+    with connect() as db:
+        prior = db.execute("SELECT response_json FROM remote_control_audit WHERE request_id = ?", (request_id,)).fetchone()
+        if prior:
+            response = json.loads(prior["response_json"])
+            response["replayed"] = True
+            return response
+    decision_command = bool(re.fullmatch(r"(批准|拒绝|稍后|approve|reject|defer)\s+[A-Za-z0-9_-]+", command, re.IGNORECASE))
+    if source != "scout-teams-bot" or conversation_type != "personal":
+        result = {"ok": False, "kind": "denied", "executionEnabled": False,
+                  "error": "remote control is restricted to the bound Scout Teams Bot personal chat"}
+    elif decision_command and data.get("userConfirmed") is not True:
+        result = {"ok": False, "kind": "denied", "executionEnabled": False,
+                  "error": "userConfirmed=true is required for a decision"}
+    else:
+        result = _remote_control_result(command)
+    result["requestId"] = request_id
+    result["source"] = source
+    with connect() as db:
+        db.execute("INSERT INTO remote_control_audit(request_id,created_at,source,conversation_type,command,kind,ok,response_json) VALUES(?,?,?,?,?,?,?,?)",
+                   (request_id, utc_now(), source, conversation_type, command, result.get("kind", ""),
+                    int(bool(result.get("ok"))), json.dumps(result, ensure_ascii=False)))
+        touch_version(db)
+    return result
 
 
 _REQUIRED_AUTOMATIONS = (
@@ -4526,7 +4570,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/remote-control":
                 data = self.read_json()
-                self.send_json(remote_control(str(data.get("command") or "")))
+                self.send_json(remote_control(data))
                 return
             if parsed.path.startswith("/api/engineering-actions/") and parsed.path.endswith("/decision"):
                 parts = parsed.path.strip("/").split("/")

@@ -20,9 +20,22 @@ class EngineeringActionTests(unittest.TestCase):
   with self.assertRaises(ValueError):app.decide_engineering_action(item['id'],'approved')
  def test_requires_exact_target_and_action(self):
   with self.assertRaises(ValueError):app.create_engineering_action({'lane':'pipeline','actionType':'pipeline-retry','title':'bad'})
+ def remote(self,command,request_id='msg-1',confirmed=False,conversation='personal'):
+  return app.remote_control({'command':command,'requestId':request_id,'source':'scout-teams-bot','conversationType':conversation,'userConfirmed':confirmed})
  def test_remote_status_and_approval_never_execute(self):
-  status=app.remote_control('状态');self.assertEqual('status',status['kind']);self.assertFalse(status['executionEnabled'])
-  item=app.create_engineering_action(self.payload());result=app.remote_control('批准 '+item['id']);self.assertEqual('approved',result['action']['status']);self.assertFalse(result['executionEnabled']);self.assertIn('未执行',result['message'])
+  status=self.remote('状态');self.assertEqual('status',status['kind']);self.assertFalse(status['executionEnabled'])
+  item=app.create_engineering_action(self.payload());result=self.remote('批准 '+item['id'],'msg-2',True);self.assertEqual('approved',result['action']['status']);self.assertFalse(result['executionEnabled']);self.assertIn('未执行',result['message'])
  def test_remote_unknown_command_returns_help(self):
-  result=app.remote_control('部署 prod');self.assertFalse(result['ok']);self.assertEqual('help',result['kind'])
+  result=self.remote('部署 prod');self.assertFalse(result['ok']);self.assertEqual('help',result['kind'])
+ def test_remote_decision_requires_personal_chat_and_confirmation(self):
+  item=app.create_engineering_action(self.payload())
+  self.assertEqual('denied',self.remote('批准 '+item['id'],'group-msg',True,'group')['kind'])
+  self.assertEqual('denied',self.remote('批准 '+item['id'],'no-confirm',False)['kind'])
+  self.assertEqual('proposed',app.list_engineering_actions()['actions'][0]['status'])
+ def test_remote_request_is_idempotent(self):
+  item=app.create_engineering_action(self.payload());first=self.remote('批准 '+item['id'],'stable-id',True);second=self.remote('批准 '+item['id'],'stable-id',True)
+  self.assertEqual('approved',first['action']['status']);self.assertTrue(second['replayed'])
+ def test_remote_requires_bound_source(self):
+  result=app.remote_control({'command':'状态','requestId':'bad-source','source':'unknown','conversationType':'personal'})
+  self.assertEqual('denied',result['kind'])
 if __name__=='__main__':unittest.main()
