@@ -5,6 +5,7 @@ import argparse
 import json
 from pathlib import Path
 
+from collaboration_collector import build_snapshot as collaboration_snapshot
 from cost_collector import build_snapshot as cost_snapshot
 from pipeline_collector import build_snapshot as pipeline_snapshot
 from pipeline_collector import post_snapshot
@@ -23,6 +24,7 @@ def main() -> None:
         release_snapshot(args.workspace),
         pipeline_snapshot(args.workspace),
         cost_snapshot(args.workspace),
+        collaboration_snapshot(args.workspace),
     ]
     results = snapshots if args.dry_run else [post_snapshot(args.app_url, snapshot) for snapshot in snapshots]
     print(json.dumps({"ok": True, "readOnly": True, "results": results}, ensure_ascii=False, indent=2))
