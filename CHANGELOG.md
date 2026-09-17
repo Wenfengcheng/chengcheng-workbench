@@ -1,6 +1,13 @@
 # Changelog
 
-## Chengcheng Workbench 0.2.0 (unreleased)
+## Chengcheng Workbench 0.3.0 (unreleased)
+
+- Added read-only S360 and Pipeline collectors that convert existing local evidence artifacts into the live lane contract.
+- S360 cards now summarize scan rows, Past SLA, Near SLA, daily changes, Phase 3 integrity, and evidence paths from the latest deterministic artifacts.
+- Pipeline cards now summarize success/failure/running counts and fail closed on known non-retryable builds; collectors never retry or mutate ADO.
+- Added a one-shot `collectors/refresh_workbench.py` runner; scheduling remains opt-in and is not installed automatically.
+
+## Chengcheng Workbench 0.2.0
 
 - Added a SQLite-backed current snapshot contract for five operational lanes and exposed it through `GET/POST /api/ops-lanes`.
 - Replaced static homepage shortcuts with live cards that show status, headline, metrics, actionable items, evidence count, owner, and refresh time.
