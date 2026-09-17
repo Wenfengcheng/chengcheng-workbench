@@ -10,6 +10,7 @@ let sweepRequestedAt = 0;
 const selectedApprovals = new Set();
 let approvalsRenderSig = "";
 let opsLanes = [];
+let engineeringActions = [];
 
 const $ = (id) => document.getElementById(id);
 
@@ -280,6 +281,33 @@ function renderOpsLanes() {
         <div class="lane-foot"><span>${escapeHtml(lane.owner)} · ${evidence} 条证据</span><time>${lane.updatedAt ? formatTime(lane.updatedAt) : "尚未刷新"}</time></div>
       </article>`;
   }).join("");
+}
+
+const ENGINEERING_ACTION_LABELS = {
+  "pipeline-retry": "Pipeline 重试", "security-tag": "Security Tag",
+  deployment: "部署", "ado-update": "ADO 更新", "cloud-change": "云资源变更"
+};
+
+function renderEngineeringActions() {
+  const root = $("engineeringActions");
+  if (!root) return;
+  const proposed = engineeringActions.filter((item) => item.status === "proposed");
+  root.innerHTML = proposed.length ? proposed.map((item) => `
+    <article class="engineering-action risk-${escapeHtml(item.risk)}">
+      <div class="engineering-action-head">
+        <div><span class="risk ${escapeHtml(item.risk)}">${escapeHtml(item.risk)}</span><span class="action-kind">${escapeHtml(ENGINEERING_ACTION_LABELS[item.action_type] || item.action_type)}</span></div>
+        <span class="status waiting_approval">待决定</span>
+      </div>
+      <h3>${escapeHtml(item.title)}</h3>
+      <div class="action-target"><b>目标</b>${escapeHtml(item.target)}${item.environment ? ` · ${escapeHtml(item.environment)}` : ""}</div>
+      <div class="exact-action"><b>精确动作</b><code>${escapeHtml(item.exact_action)}</code></div>
+      ${item.rationale ? `<p>${escapeHtml(item.rationale)}</p>` : ""}
+      <div class="action-columns">
+        <div><b>前置检查</b><ul>${(item.prechecks || []).map((value) => `<li>${escapeHtml(typeof value === "string" ? value : value.label || JSON.stringify(value))}</li>`).join("") || "<li>未提供</li>"}</ul></div>
+        <div><b>回滚 / 停止条件</b><p>${escapeHtml(item.rollback || "未提供；不得执行")}</p></div>
+      </div>
+      <div class="action-footer"><span>${(item.evidence || []).length} 条证据 · ${escapeHtml(item.source || "本地提案")}</span><div class="toolbar"><button data-eng-decision="deferred" data-eng-id="${escapeHtml(item.id)}">稍后</button><button data-eng-decision="rejected" data-eng-id="${escapeHtml(item.id)}">拒绝</button><button class="btn primary" data-eng-decision="approved" data-eng-id="${escapeHtml(item.id)}">批准提案</button></div></div>
+    </article>`).join("") : `<div class="empty">当前没有待决定的工程动作提案。</div>`;
 }
 
 function jobsForEmployee(name) {
@@ -1026,16 +1054,25 @@ function render() {
   renderMessages();
   renderThreadContext();
   renderOpsLanes();
+  renderEngineeringActions();
 }
 
 async function loadState() {
-  const [nextState, laneState] = await Promise.all([
+  const [nextState, laneState, actionState] = await Promise.all([
     api("/api/state"),
-    api("/api/ops-lanes").catch(() => ({ lanes: [] }))
+    api("/api/ops-lanes").catch(() => ({ lanes: [] })),
+    api("/api/engineering-actions").catch(() => ({ actions: [] }))
   ]);
   state = nextState;
   opsLanes = laneState.lanes || [];
+  engineeringActions = actionState.actions || [];
   render();
+}
+
+async function decideEngineeringAction(id, decision) {
+  const note = window.prompt(decision === "approved" ? "批准说明（批准只记录意图，不会执行）：" : "可选说明：", "") ?? "";
+  await api(`/api/engineering-actions/${encodeURIComponent(id)}/decision`, {method: "POST", body: JSON.stringify({decision, note})});
+  await loadState();
 }
 
 async function sendChat(event) {
@@ -1156,6 +1193,11 @@ async function submitApprovalFeedback(event) {
 }
 
 document.addEventListener("click", async (event) => {
+  const engineeringButton = event.target.closest("[data-eng-decision]");
+  if (engineeringButton) {
+    await decideEngineeringAction(engineeringButton.dataset.engId, engineeringButton.dataset.engDecision);
+    return;
+  }
   const groupActionBtn = event.target.closest("[data-group-action]");
   if (groupActionBtn) {
     const groupKey = groupActionBtn.dataset.groupKey;
