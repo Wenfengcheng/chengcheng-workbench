@@ -1,0 +1,71 @@
+{
+  "_meta": {
+    "name": "Chengcheng Workbench Scout-native Migration Bundle",
+    "version": "0.5.0-shadow",
+    "runtimeOwner": "Microsoft Scout",
+    "installationState": "disabled-shadow",
+    "note": "All automations must be imported disabled. Paths use {{SCOUT_RUNTIME_ROOT}} and must not resolve into .concordia-client. No sends, ADO writes, tags, builds, deployments, deletes, or scheduler mutation are permitted in shadow mode."
+  },
+  "automations": [
+    {
+      "name": "程程工作台 - S360 每日报告 Shadow",
+      "description": "Scout-native 09:00 S360 deterministic report chain, shadow only.",
+      "schedule": "every day at 9am",
+      "enabled": false,
+      "teamsNotify": "never",
+      "skillNames": ["vulnerability-reporting-vnext", "s360-report-reliability", "chengcheng-workbench"],
+      "workingDir": "{{SCOUT_RUNTIME_ROOT}}",
+      "steps": [{"label": "Run deterministic S360 shadow", "prompt": "Run {{SCOUT_RUNTIME_ROOT}}\\jobs\\s360-daily-shadow.ps1. Require today's two non-empty CSV files, schema/freshness/continuity PASS, HTML generation PASS, and evidence manifest. SHADOW: no email, Teams, WeChat, ADO, tag, build, deployment, deletion, or scheduler changes. Refresh the workbench security lane from the resulting artifacts."}]
+    },
+    {
+      "name": "程程工作台 - S360 编排 Shadow",
+      "description": "Scout-native 09:30 S360 classification/orchestration shadow.",
+      "schedule": "every day at 9:30am",
+      "enabled": false,
+      "teamsNotify": "never",
+      "skillNames": ["security-orchestrator", "chengcheng-workbench"],
+      "workingDir": "{{SCOUT_RUNTIME_ROOT}}",
+      "steps": [{"label": "Build read-only repair plan", "prompt": "Run {{SCOUT_RUNTIME_ROOT}}\\jobs\\s360-orchestrator-shadow.ps1. Produce classification and proposed ADO actions only. SHADOW: never create/update/close ADO items and never run remediation."}]
+    },
+    {
+      "name": "程程工作台 - S360 Phase3 Shadow",
+      "description": "Scout-native 09:45 AKS/scan/tag-plan verification shadow.",
+      "schedule": "every day at 9:45am",
+      "enabled": false,
+      "teamsNotify": "never",
+      "skillNames": ["security-tag-planner", "security-verify", "chengcheng-workbench"],
+      "workingDir": "{{SCOUT_RUNTIME_ROOT}}",
+      "steps": [{"label": "Generate dry-run tag plan", "prompt": "Run {{SCOUT_RUNTIME_ROOT}}\\jobs\\s360-phase3-shadow.ps1. Use live Pod commit as the baseline and generate a dry-run tag plan. Never create/push tags, approve pipelines, deploy, or update ADO."}]
+    },
+    {
+      "name": "程程工作台 - Azure 成本每日 Shadow",
+      "description": "Scout-native 09:45 deterministic cost monitor shadow.",
+      "schedule": "every day at 9:45am",
+      "enabled": false,
+      "teamsNotify": "never",
+      "skillNames": ["operationalinsights-cost-optimizer", "azure-provider-cost-model-verifier", "chengcheng-workbench"],
+      "workingDir": "{{SCOUT_RUNTIME_ROOT}}",
+      "steps": [{"label": "Run cost model verification", "prompt": "Run {{SCOUT_RUNTIME_ROOT}}\\jobs\\cost-daily-shadow.ps1. Preserve actual, modeled, run-rate, realized saving, and growth avoidance as separate measures. Produce evidence and refresh the cost lane. Never resize, delete, change tier, or send reports."}]
+    },
+    {
+      "name": "程程工作台 - 会议调度 Shadow",
+      "description": "Scout-native weekday meeting discovery and private HTML summary planning.",
+      "schedule": "every weekday at 8am",
+      "enabled": false,
+      "teamsNotify": "never",
+      "skillNames": ["meeting-summary", "chengcheng-workbench"],
+      "workingDir": "{{SCOUT_RUNTIME_ROOT}}",
+      "steps": [{"label": "Plan meeting summaries", "prompt": "Read today's calendar and available Teams recap/transcript metadata. Produce a deduplicated private plan and refresh the collaboration lane. SHADOW: do not create automations, send Teams messages, alter calendar responses, or invent notes when no transcript exists."}]
+    },
+    {
+      "name": "程程工作台 - Weekly Build Monitor Shadow",
+      "description": "Scout-native Monday 11:00 pipeline status and retry classification shadow.",
+      "schedule": "every Monday at 11am",
+      "enabled": false,
+      "teamsNotify": "never",
+      "skillNames": ["pipeline-retry", "chengcheng-workbench"],
+      "workingDir": "{{SCOUT_RUNTIME_ROOT}}",
+      "steps": [{"label": "Classify weekly builds", "prompt": "Run {{SCOUT_RUNTIME_ROOT}}\\jobs\\weekly-build-shadow.ps1. Query completed, in-progress, and not-started builds and classify retryability. SHADOW: never retry a build. Write exact build IDs, evidence, and proposed engineering actions only."}]
+    }
+  ]
+}
