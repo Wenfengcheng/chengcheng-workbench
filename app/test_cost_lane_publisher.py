@@ -30,6 +30,17 @@ class CostLanePublisherTests(unittest.TestCase):
             self.assertEqual(path, publisher.latest_evidence(root))
             self.assertIsNotNone(publisher.SUMMARY.search(payload["stdout"]))
             self.assertEqual(4, len(publisher.PROVIDER.findall(payload["stdout"])))
+            self.assertEqual(["2026-09-15"], publisher.green_fact_dates(root))
+
+            # A rerun for the same ReportAsOf must not advance the Gate.
+            (evidence_dir / "rerun.json").write_text(json.dumps(payload), encoding="utf-8")
+            self.assertEqual(["2026-09-15"], publisher.green_fact_dates(root))
+
+            # A distinct verified fact date advances it exactly once.
+            next_payload = dict(payload)
+            next_payload["stdout"] = payload["stdout"].replace("ReportAsOf=2026-09-15", "ReportAsOf=2026-09-16")
+            (evidence_dir / "next.json").write_text(json.dumps(next_payload), encoding="utf-8")
+            self.assertEqual(["2026-09-15", "2026-09-16"], publisher.green_fact_dates(root))
 
     def test_safety_attestation_is_fail_closed(self):
         unsafe = {"exitCode": 0, "notificationsSent": True, "externalWrites": False, "resourceChanges": False}

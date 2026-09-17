@@ -17,12 +17,42 @@ OPINSIGHTS = re.compile(r"OperationalInsights skill verify (?P<status>PASS|BASEL
 PROVIDER = re.compile(r"(Storage|Search|CDN|AML)=(PASS|BASELINE|DRIFT)\(")
 
 
-def latest_evidence(root: pathlib.Path) -> pathlib.Path:
+def evidence_files(root: pathlib.Path) -> list[pathlib.Path]:
     evidence_dir = root / "runtime" / "evidence" / "cost"
     candidates = sorted(evidence_dir.glob("*.json"), key=lambda path: path.stat().st_mtime)
     if not candidates:
         raise RuntimeError(f"No Scout cost evidence found in {evidence_dir}")
-    return candidates[-1]
+    return candidates
+
+
+def latest_evidence(root: pathlib.Path) -> pathlib.Path:
+    return evidence_files(root)[-1]
+
+
+def green_fact_dates(root: pathlib.Path) -> list[str]:
+    """Count GREEN runs by distinct cost-fact date, never by rerun count."""
+    dates: set[str] = set()
+    for path in evidence_files(root):
+        try:
+            evidence = json.loads(path.read_text(encoding="utf-8"))
+            if evidence.get("exitCode") != 0:
+                continue
+            if any(evidence.get(key) is not False for key in ("notificationsSent", "externalWrites", "resourceChanges")):
+                continue
+            stdout = str(evidence.get("stdout") or "")
+            summary = SUMMARY.search(stdout)
+            opinsights = OPINSIGHTS.search(stdout)
+            providers = PROVIDER.findall(stdout)
+            if not summary or not opinsights or len(providers) != 4:
+                continue
+            if opinsights.group("status") not in {"PASS", "BASELINE"}:
+                continue
+            if not all(status in {"PASS", "BASELINE"} for _, status in providers):
+                continue
+            dates.add(summary.group("asof"))
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    return sorted(dates)
 
 
 def main() -> int:
@@ -47,23 +77,26 @@ def main() -> int:
     values = summary.groupdict()
     provider_items = [{"title": name, "status": status.lower()} for name, status in providers]
     overall = "verified" if opinsights.group("status") in {"PASS", "BASELINE"} and all(x["status"] in {"pass", "baseline"} for x in provider_items) else "attention"
+    fact_dates = green_fact_dates(root)
+    green_count = min(len(fact_dates), 3)
     observed = dt.datetime.fromtimestamp(evidence_path.stat().st_mtime, dt.timezone.utc).isoformat()
     payload = {
         "lane": "cost",
         "status": overall,
-        "headline": f"Scout Shadow GREEN · {values['snapshot']} · 1/3",
+        "headline": f"Scout Shadow GREEN · {values['snapshot']} · {green_count}/3",
         "summary": f"成本事实截至 {values['asof']}；OperationalInsights {opinsights.group('status')}，四个 Provider 模型均完成对账。Shadow 未发送通知、未执行外部写入或资源变更。",
         "metrics": [
             {"label": "MTD", "value": f"${float(values['mtd'].replace(',', '')):,.2f}"},
             {"label": "月度投影", "value": f"${float(values['forecast'].replace(',', '')):,.2f}"},
             {"label": "OI 漂移", "value": f"{float(opinsights.group('drift')):+.2f}%"},
-            {"label": "Shadow Gate", "value": "1 / 3"}
+            {"label": "Shadow Gate", "value": f"{green_count} / 3"}
         ],
         "items": provider_items,
         "evidence": [
             {"label": "Scout Shadow evidence", "path": str(evidence_path)},
             {"label": "Cost trend HTML", "path": str(root / "fy27-cost-review" / "monitoring" / "pbi-cost-trend.html")},
-            {"label": "Trend SHA256", "value": values["sha"].upper()}
+            {"label": "Trend SHA256", "value": values["sha"].upper()},
+            {"label": "GREEN fact dates", "value": ", ".join(fact_dates)}
         ],
         "source": "microsoft-scout/cost-daily-shadow",
         "observedAt": observed

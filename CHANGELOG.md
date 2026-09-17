@@ -12,6 +12,8 @@
 - Added a deterministic evidence publisher that projects the latest safe Scout cost result into the Workbench Azure Cost lane and verifies the API read-back.
 - Restyled the Workbench in a CreateEval-inspired Microsoft/Azure product language: light-first canvas, Azure blue actions, slate hierarchy, compact 72px app header, 1280px workspace, 8–9px cards, quiet borders and reduced motion.
 - Installed exactly one native Scout Automation for the Azure Cost Shadow at 09:45 Asia/Shanghai with `teamsNotify=never`; all other migration automations remain absent/disabled.
+- Made the Workbench Shadow Gate evidence-driven: it advances only for distinct verified `ReportAsOf` cost-fact dates, so same-day reruns cannot manufacture 3/3.
+- Installed a stable Scout-owned Workbench v0.5.2 at `~/.scout/runtime/workbench-v0.5.2` on port 8792 and updated the cost Automation to publish through a versioned runtime publisher.
 
 
 ## Chengcheng Workbench 0.4.1 (unreleased)
