@@ -4,6 +4,7 @@
 
 - Added a create-only, credential-free Azure Cost package manifest and packager for the canonical Scout Runtime Root.
 - Added fail-closed Scout preflight checks for Python, `requests`, Azure CLI, package completeness, runtime isolation, and three independent Azure profiles.
+- Added a create-only interactive provisioning script for separate Global Power BI and Azure China read profiles; it never copies an OpenClaw CLI profile.
 - Added a notification-silent cost Shadow wrapper with package-local immutable evidence output.
 - Created the first independent package at `~/.scout/runtime/packages/chengcheng-cost-monitor`; authentication remains intentionally blocked until Scout-owned Azure profiles are provisioned.
 
