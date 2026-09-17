@@ -5,7 +5,10 @@
 - Added read-only S360 and Pipeline collectors that convert existing local evidence artifacts into the live lane contract.
 - S360 cards now summarize scan rows, Past SLA, Near SLA, daily changes, Phase 3 integrity, and evidence paths from the latest deterministic artifacts.
 - Pipeline cards now summarize success/failure/running counts and fail closed on known non-retryable builds; collectors never retry or mutate ADO.
-- Added a one-shot `collectors/refresh_workbench.py` runner; scheduling remains opt-in and is not installed automatically.
+- Added deployment/release collection from the deterministic Security Tag plan; it surfaces environment splits and approval candidates without creating tags, builds, or deployments.
+- Added Azure cost collection from verified monitoring CSVs, preserving the distinction between actual, run-rate, budget variance, and model verification.
+- Added meeting/action collection from locally persisted HTML minutes; missing evidence stays unknown rather than inventing meeting outcomes.
+- Added a one-shot `collectors/refresh_workbench.py` runner for all five lanes; scheduling remains opt-in and is not installed automatically.
 
 ## Chengcheng Workbench 0.2.0
 
