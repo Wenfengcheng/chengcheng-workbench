@@ -48,6 +48,8 @@
       "packagePath": "{{SCOUT_RUNTIME_ROOT}}/runtime/packages/chengcheng-cost-monitor-v0.5.1",
       "packageValidation": "13 credential-free source files copied create-only; host Azure CLI Global/China contexts PASS; first notification-silent shadow run PASS on 2026-09-17",
       "lastShadowEvidence": "runtime/evidence/cost/20260917T171131066814.json",
+      "scoutAutomationId": "8ef736c9-d945-4e05-9c96-e4ee3879665b",
+      "scoutAutomationState": "enabled; cron 45 9 * * * local Asia/Shanghai; teamsNotify=never; exactly one Scout automation installed",
       "blockers": ["complete two more consecutive notification-silent GREEN shadow runs", "notification destination changes from legacy delivery to Scout Teams Bot at cutover"],
       "cutoverSideEffects": ["Scout Teams Bot owner notification"]
     },

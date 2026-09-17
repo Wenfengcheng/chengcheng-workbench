@@ -11,6 +11,7 @@
 - Completed the first notification-silent GREEN Shadow run on 2026-09-17: MTD $38,555.15, OperationalInsights PASS, and Storage/Search/CDN/AML canonical reconciliation BASELINE.
 - Added a deterministic evidence publisher that projects the latest safe Scout cost result into the Workbench Azure Cost lane and verifies the API read-back.
 - Restyled the Workbench in a CreateEval-inspired Microsoft/Azure product language: light-first canvas, Azure blue actions, slate hierarchy, compact 72px app header, 1280px workspace, 8–9px cards, quiet borders and reduced motion.
+- Installed exactly one native Scout Automation for the Azure Cost Shadow at 09:45 Asia/Shanghai with `teamsNotify=never`; all other migration automations remain absent/disabled.
 
 
 ## Chengcheng Workbench 0.4.1 (unreleased)
