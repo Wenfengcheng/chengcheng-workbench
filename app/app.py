@@ -875,6 +875,49 @@ def init_db() -> None:
                 decision_note TEXT NOT NULL DEFAULT ''
             );
 
+            CREATE TABLE IF NOT EXISTS security_findings (
+                id TEXT PRIMARY KEY,
+                imported_at TEXT NOT NULL,
+                observed_date TEXT NOT NULL,
+                registry TEXT NOT NULL,
+                image TEXT NOT NULL,
+                tags TEXT NOT NULL DEFAULT '',
+                scan_digest TEXT NOT NULL DEFAULT '',
+                sla TEXT NOT NULL,
+                vulnerability_count INTEGER NOT NULL DEFAULT 0,
+                max_cvss REAL NOT NULL DEFAULT 0,
+                earliest_due TEXT NOT NULL DEFAULT '',
+                last_seen_utc TEXT NOT NULL DEFAULT '',
+                namespaces TEXT NOT NULL DEFAULT '',
+                clusters TEXT NOT NULL DEFAULT '',
+                vulnerability_name TEXT NOT NULL,
+                scan_result TEXT NOT NULL DEFAULT '',
+                vendor_solution TEXT NOT NULL DEFAULT '',
+                repository TEXT NOT NULL DEFAULT '',
+                remediation_bucket TEXT NOT NULL DEFAULT 'unmapped',
+                remediation_json TEXT NOT NULL DEFAULT '{}',
+                history_json TEXT NOT NULL DEFAULT '[]',
+                status TEXT NOT NULL DEFAULT 'open',
+                source_json TEXT NOT NULL DEFAULT '{}',
+                UNIQUE(observed_date, registry, image, vulnerability_name)
+            );
+
+            CREATE TABLE IF NOT EXISTS execution_batches (
+                id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                lane TEXT NOT NULL,
+                action_type TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'approved_pending_scout',
+                finding_ids_json TEXT NOT NULL,
+                plan_fingerprint TEXT NOT NULL,
+                approval_note TEXT NOT NULL DEFAULT '',
+                requested_by TEXT NOT NULL DEFAULT 'workbench',
+                claimed_at TEXT NOT NULL DEFAULT '',
+                completed_at TEXT NOT NULL DEFAULT '',
+                result_json TEXT NOT NULL DEFAULT '{}'
+            );
+
             CREATE TABLE IF NOT EXISTS remote_control_audit (
                 request_id TEXT PRIMARY KEY,
                 created_at TEXT NOT NULL,
@@ -899,6 +942,8 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_inbox_signals_status ON inbox_signals(status, received_at);
             CREATE INDEX IF NOT EXISTS idx_work_ledger_date ON work_ledger_entries(status, occurred_at);
             CREATE INDEX IF NOT EXISTS idx_sweep_runs_started ON sweep_runs(started_at);
+            CREATE INDEX IF NOT EXISTS idx_security_findings_status ON security_findings(status, sla, max_cvss);
+            CREATE INDEX IF NOT EXISTS idx_execution_batches_status ON execution_batches(status, created_at);
 
             CREATE TRIGGER IF NOT EXISTS preserve_approvals_delete
             BEFORE DELETE ON approvals
@@ -3997,6 +4042,89 @@ def decide_engineering_action(action_id: str, decision: str, note: str = "") -> 
     return _engineering_action(row)
 
 
+def _security_finding(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+    item = dict(row)
+    item["remediation"] = json.loads(item.pop("remediation_json", "{}") or "{}")
+    item["history"] = _safe_json_list(item.pop("history_json", "[]"))
+    item["source"] = json.loads(item.pop("source_json", "{}") or "{}")
+    return item
+
+
+def list_security_findings() -> dict[str, Any]:
+    with connect() as db:
+        findings = [_security_finding(row) for row in db.execute(
+            "SELECT * FROM security_findings ORDER BY "
+            "CASE sla WHEN 'Past SLA' THEN 1 WHEN 'Near SLA' THEN 2 ELSE 3 END, "
+            "max_cvss DESC, earliest_due, image"
+        )]
+        batches = [dict(row) for row in db.execute(
+            "SELECT * FROM execution_batches ORDER BY created_at DESC LIMIT 50"
+        )]
+    for batch in batches:
+        batch["findingIds"] = _safe_json_list(batch.pop("finding_ids_json", "[]"))
+        batch["result"] = json.loads(batch.pop("result_json", "{}") or "{}")
+    return {"findings": findings, "batches": batches, "serverTime": utc_now()}
+
+
+def import_security_findings(data: dict[str, Any]) -> dict[str, Any]:
+    findings = data.get("findings") or []
+    if not isinstance(findings, list):
+        raise ValueError("findings must be an array")
+    now = utc_now()
+    with connect() as db:
+        for item in findings:
+            finding_id = str(item.get("id") or "").strip()
+            required = [str(item.get(key) or "").strip() for key in ("observedDate", "registry", "image", "sla", "vulnerabilityName")]
+            if not finding_id or not all(required):
+                raise ValueError("each finding needs id, observedDate, registry, image, sla, and vulnerabilityName")
+            db.execute(
+                "INSERT INTO security_findings(id,imported_at,observed_date,registry,image,tags,scan_digest,sla,vulnerability_count,max_cvss,earliest_due,last_seen_utc,namespaces,clusters,vulnerability_name,scan_result,vendor_solution,repository,remediation_bucket,remediation_json,history_json,status,source_json) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'open',?) ON CONFLICT(id) DO UPDATE SET "
+                "imported_at=excluded.imported_at,observed_date=excluded.observed_date,tags=excluded.tags,scan_digest=excluded.scan_digest,sla=excluded.sla,vulnerability_count=excluded.vulnerability_count,max_cvss=excluded.max_cvss,earliest_due=excluded.earliest_due,last_seen_utc=excluded.last_seen_utc,namespaces=excluded.namespaces,clusters=excluded.clusters,scan_result=excluded.scan_result,vendor_solution=excluded.vendor_solution,repository=excluded.repository,remediation_bucket=excluded.remediation_bucket,remediation_json=excluded.remediation_json,history_json=excluded.history_json,source_json=excluded.source_json",
+                (finding_id, now, required[0], required[1], required[2], str(item.get("tags") or ""),
+                 str(item.get("scanDigest") or ""), required[3], int(item.get("vulnerabilityCount") or 0),
+                 float(item.get("maxCvss") or 0), str(item.get("earliestDue") or ""), str(item.get("lastSeenUtc") or ""),
+                 str(item.get("namespaces") or ""), str(item.get("clusters") or ""), required[4],
+                 str(item.get("scanResult") or ""), str(item.get("vendorSolution") or ""), str(item.get("repository") or ""),
+                 str(item.get("remediationBucket") or "unmapped"), json.dumps(item.get("remediation") or {}, ensure_ascii=False),
+                 json.dumps(item.get("history") or [], ensure_ascii=False), json.dumps(item.get("source") or {}, ensure_ascii=False))
+            )
+        touch_version(db)
+    return {"ok": True, "imported": len(findings), **list_security_findings()}
+
+
+def approve_security_batch(data: dict[str, Any]) -> dict[str, Any]:
+    ids = data.get("findingIds") or []
+    if not isinstance(ids, list) or not ids or len(ids) > 100:
+        raise ValueError("findingIds must contain 1-100 ids")
+    ids = list(dict.fromkeys(str(value) for value in ids if str(value).strip()))
+    placeholders = ",".join("?" for _ in ids)
+    with connect() as db:
+        rows_found = [dict(row) for row in db.execute(
+            f"SELECT * FROM security_findings WHERE id IN ({placeholders}) AND status='open'", ids
+        )]
+        if len(rows_found) != len(ids):
+            raise ValueError("one or more findings are missing, closed, or already queued")
+        blocked = [row["id"] for row in rows_found if row["remediation_bucket"] not in {"canExecute", "needConfirmation", "dedicatedFlow"} or
+                   (not row["repository"] and not json.loads(row["remediation_json"] or "{}").get("dedicatedSkill"))]
+        if blocked:
+            raise ValueError(f"findings require more planning before approval: {', '.join(blocked)}")
+        canonical = [{"id": row["id"], "repository": row["repository"], "scanDigest": row["scan_digest"],
+                      "remediation": json.loads(row["remediation_json"] or "{}")} for row in sorted(rows_found, key=lambda x: x["id"])]
+        fingerprint = hashlib.sha256(json.dumps(canonical, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+        batch_id, now = new_id("secbatch"), utc_now()
+        db.execute(
+            "INSERT INTO execution_batches(id,created_at,updated_at,lane,action_type,status,finding_ids_json,plan_fingerprint,approval_note,requested_by) VALUES(?,?,?,?,?,'approved_pending_scout',?,?,?,?)",
+            (batch_id, now, now, "security", "security-remediation", json.dumps(ids), fingerprint,
+             str(data.get("note") or "")[:1200], "workbench")
+        )
+        db.execute(f"UPDATE security_findings SET status='approved_pending_scout' WHERE id IN ({placeholders})", ids)
+        touch_version(db)
+    return {"ok": True, "batchId": batch_id, "status": "approved_pending_scout", "findingIds": ids,
+            "planFingerprint": fingerprint, "executionStarted": False,
+            "message": "批准已进入 Scout 执行队列；Scout 领取前会重新验证基线、摘要和计划指纹。"}
+
+
 def _remote_control_result(command: str) -> dict[str, Any]:
     """Parse one already-authenticated deterministic remote command."""
     text = " ".join(command.strip().split())
@@ -4506,6 +4634,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/engineering-actions":
             self.send_json(list_engineering_actions())
             return
+        if parsed.path == "/api/security-findings":
+            self.send_json(list_security_findings())
+            return
         if parsed.path.startswith("/api/jobs/"):
             parts = parsed.path.strip("/").split("/")
             if len(parts) != 3 or not parts[2]:
@@ -4567,6 +4698,12 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path == "/api/engineering-actions":
                 action = create_engineering_action(self.read_json())
                 self.send_json({"ok": True, "action": action}, HTTPStatus.CREATED)
+                return
+            if parsed.path == "/api/security-findings/import":
+                self.send_json(import_security_findings(self.read_json()))
+                return
+            if parsed.path == "/api/security-findings/approve":
+                self.send_json(approve_security_batch(self.read_json()), HTTPStatus.CREATED)
                 return
             if parsed.path == "/api/remote-control":
                 data = self.read_json()

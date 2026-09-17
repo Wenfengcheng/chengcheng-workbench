@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0-shadow — operational Workbench vertical slice
+
+- Replaced the summary-only S360 experience with a detailed vulnerability and remediation workspace.
+- Added normalized S360 finding storage, full scan/vendor/current-plan/history detail, SLA and plan filters, single-item approval, filtered bulk selection, and immutable execution batches.
+- Approval now queues a fingerprinted `approved_pending_scout` batch; browser requests never execute production changes, and Scout must revalidate the live baseline before claiming work.
+- Imported 132 real 2026-09-17 S360 rows: 7 Past SLA, 38 Near SLA, 60 with a current remediation route, 51 with historical plans, and 72 OfficePlus rows honestly marked unmapped pending a reliable plan.
+
+
 ## 0.5.1-shadow — Scout Azure Cost runtime package
 
 - Added a create-only, credential-free Azure Cost package manifest and packager for the canonical Scout Runtime Root.

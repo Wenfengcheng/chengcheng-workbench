@@ -25,7 +25,8 @@ def main() -> int:
         raise RuntimeError("Refusing update: safety state changed")
     old = str(item["steps"][0]["prompt"])
     new = old.replace("scripts\\publish_cost_lane.py", "scripts\\publish_cost_lane_v052.py")
-    new = new.replace("--workbench-url http://127.0.0.1:8791", "--workbench-url http://127.0.0.1:8792")
+    new = new.replace("--workbench-url http://127.0.0.1:8791", "--workbench-url http://127.0.0.1:8794")
+    new = new.replace("--workbench-url http://127.0.0.1:8792", "--workbench-url http://127.0.0.1:8794")
     if new == old:
         raise RuntimeError("Expected publisher or Workbench reference not found")
     item["steps"][0]["prompt"] = new

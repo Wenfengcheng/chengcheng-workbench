@@ -11,6 +11,9 @@ const selectedApprovals = new Set();
 let approvalsRenderSig = "";
 let opsLanes = [];
 let engineeringActions = [];
+let securityFindings = [];
+let securityBatches = [];
+const selectedSecurity = new Set();
 
 const $ = (id) => document.getElementById(id);
 
@@ -308,6 +311,75 @@ function renderEngineeringActions() {
       </div>
       <div class="action-footer"><span>${(item.evidence || []).length} 条证据 · ${escapeHtml(item.source || "本地提案")}</span><div class="toolbar"><button data-eng-decision="deferred" data-eng-id="${escapeHtml(item.id)}">稍后</button><button data-eng-decision="rejected" data-eng-id="${escapeHtml(item.id)}">拒绝</button><button class="btn primary" data-eng-decision="approved" data-eng-id="${escapeHtml(item.id)}">批准提案</button></div></div>
     </article>`).join("") : `<div class="empty">当前没有待决定的工程动作提案。</div>`;
+}
+
+const SECURITY_BUCKET = {
+  canExecute: "可执行", needConfirmation: "需确认", dedicatedFlow: "专属流程",
+  acrPrerequisite: "需基础镜像", splitEnv: "环境分流", unmapped: "待规划"
+};
+
+function filteredSecurityFindings() {
+  const sla = $("securitySlaFilter")?.value || "all";
+  const plan = $("securityPlanFilter")?.value || "all";
+  return securityFindings.filter((item) => {
+    if (sla !== "all" && item.sla !== sla) return false;
+    const actionable = ["canExecute", "needConfirmation", "dedicatedFlow"].includes(item.remediation_bucket);
+    if (plan === "actionable" && !actionable) return false;
+    if (plan === "unmapped" && actionable) return false;
+    return true;
+  });
+}
+
+function renderSecurityWorkbench() {
+  const root = $("securityFindings");
+  if (!root) return;
+  const visible = filteredSecurityFindings();
+  const actionable = securityFindings.filter((item) => ["canExecute", "needConfirmation", "dedicatedFlow"].includes(item.remediation_bucket) && item.status === "open");
+  const past = securityFindings.filter((item) => item.sla === "Past SLA").length;
+  const near = securityFindings.filter((item) => item.sla === "Near SLA").length;
+  $("securitySummary").innerHTML = `
+    <span><b>${securityFindings.length}</b> 明细行</span><span class="bad"><b>${past}</b> Past SLA</span>
+    <span class="warn"><b>${near}</b> Near SLA</span><span class="good"><b>${actionable.length}</b> 可进入审批</span>
+    <span><b>${selectedSecurity.size}</b> 已选择</span>`;
+  const button = $("approveSecurityBtn");
+  button.disabled = selectedSecurity.size === 0;
+  button.textContent = selectedSecurity.size ? `批准选中项 (${selectedSecurity.size})` : "批准选中项";
+  const all = $("securitySelectAll");
+  const visibleOpen = visible.filter((item) => item.status === "open");
+  all.checked = visibleOpen.length > 0 && visibleOpen.every((item) => selectedSecurity.has(item.id));
+  all.indeterminate = visibleOpen.some((item) => selectedSecurity.has(item.id)) && !all.checked;
+  root.innerHTML = visible.length ? visible.map((item) => {
+    const route = item.repository || item.remediation?.dedicatedSkill || "尚未映射";
+    const selectable = item.status === "open" && ["canExecute", "needConfirmation", "dedicatedFlow"].includes(item.remediation_bucket);
+    return `<tr class="finding-row sla-${escapeHtml(item.sla.replaceAll(" ", "-").toLowerCase())}">
+      <td><input type="checkbox" data-security-check="${escapeHtml(item.id)}" ${selectedSecurity.has(item.id) ? "checked" : ""} ${selectable ? "" : "disabled"}></td>
+      <td><span class="sla-badge">${escapeHtml(item.sla)}</span><strong class="cvss">${Number(item.max_cvss).toFixed(1)}</strong><small>到期 ${escapeHtml(item.earliest_due || "—")}</small></td>
+      <td><strong>${escapeHtml(item.image)}</strong><small>${escapeHtml(item.vulnerability_name)}</small><small>${item.vulnerability_count} 个漏洞 · ${escapeHtml(item.registry)}</small></td>
+      <td><span>${escapeHtml(item.namespaces || "—")}</span><small>${escapeHtml(item.clusters || "")}</small></td>
+      <td><strong>${escapeHtml(route)}</strong><small>${escapeHtml(SECURITY_BUCKET[item.remediation_bucket] || item.remediation_bucket)}</small></td>
+      <td><span class="status ${escapeHtml(item.status)}">${escapeHtml(item.status === "open" ? "待处理" : item.status)}</span></td>
+      <td><div class="row-actions"><button class="btn" type="button" data-security-detail="${escapeHtml(item.id)}">详情</button>${selectable ? `<button class="btn primary" type="button" data-security-approve-one="${escapeHtml(item.id)}">批准</button>` : ""}</div></td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="7" class="empty">当前筛选条件下没有漏洞。</td></tr>`;
+  $("securityBatches").innerHTML = securityBatches.length ? `<strong>最近执行批次</strong>${securityBatches.slice(0, 4).map((batch) => `<span>${escapeHtml(batch.id)} · ${batch.findingIds.length} 项 · ${escapeHtml(batch.status)}</span>`).join("")}` : "尚无已批准执行批次。";
+}
+
+function showSecurityDetail(id) {
+  const item = securityFindings.find((value) => value.id === id);
+  if (!item) return;
+  const r = item.remediation || {};
+  $("securityDetailBody").innerHTML = `
+    <span class="section-kicker">S360 FINDING DETAIL</span><h2>${escapeHtml(item.image)}</h2>
+    <p class="detail-vuln">${escapeHtml(item.vulnerability_name)}</p>
+    <div class="detail-grid"><div><b>风险</b><p>${escapeHtml(item.sla)} · CVSS ${Number(item.max_cvss).toFixed(1)} · 到期 ${escapeHtml(item.earliest_due)}</p></div>
+    <div><b>执行路由</b><p>${escapeHtml(item.repository || r.dedicatedSkill || "待规划")} · ${escapeHtml(SECURITY_BUCKET[item.remediation_bucket] || item.remediation_bucket)}</p></div>
+    <div><b>当前基线</b><p>${escapeHtml(r.mainSha || "—")} · ${escapeHtml(r.latestVersion || "—")}</p></div>
+    <div><b>基础镜像</b><p>${escapeHtml(r.dockerfileFrom || "—")}</p></div></div>
+    <h3>扫描明细</h3><pre>${escapeHtml(item.scan_result || "—")}</pre>
+    <h3>厂商修复建议</h3><pre>${escapeHtml(item.vendor_solution || "—")}</pre>
+    <h3>当前执行计划</h3><pre>${escapeHtml(JSON.stringify(r, null, 2))}</pre>
+    <h3>历史方案 (${(item.history || []).length})</h3><div class="history-list">${(item.history || []).map((h) => `<article><b>${escapeHtml(h.date || "未知日期")} · ${escapeHtml(SECURITY_BUCKET[h.bucket] || h.bucket)}</b><span>${escapeHtml(h.latestVersion || "")} · ${escapeHtml(h.mainSha || "")}</span><small>${escapeHtml((h.mismatches || []).join("；") || "无基线不一致")}</small></article>`).join("") || "无历史方案"}</div>`;
+  $("securityDetailDialog").showModal();
 }
 
 function jobsForEmployee(name) {
@@ -1055,18 +1127,33 @@ function render() {
   renderThreadContext();
   renderOpsLanes();
   renderEngineeringActions();
+  renderSecurityWorkbench();
 }
 
 async function loadState() {
-  const [nextState, laneState, actionState] = await Promise.all([
+  const [nextState, laneState, actionState, securityState] = await Promise.all([
     api("/api/state"),
     api("/api/ops-lanes").catch(() => ({ lanes: [] })),
-    api("/api/engineering-actions").catch(() => ({ actions: [] }))
+    api("/api/engineering-actions").catch(() => ({ actions: [] })),
+    api("/api/security-findings").catch(() => ({ findings: [], batches: [] }))
   ]);
   state = nextState;
   opsLanes = laneState.lanes || [];
   engineeringActions = actionState.actions || [];
+  securityFindings = securityState.findings || [];
+  securityBatches = securityState.batches || [];
   render();
+}
+
+async function approveSelectedSecurity(explicitIds = null) {
+  const ids = explicitIds || [...selectedSecurity];
+  if (!ids.length) return;
+  const note = window.prompt(`批准 ${ids.length} 项进入 Scout 修复队列。Scout 执行前将重新检查实时基线；可填写批次说明：`, "") ?? "";
+  if (!window.confirm(`确认批准 ${ids.length} 项？本次点击只创建不可变执行批次，不会在浏览器请求中直接修改生产环境。`)) return;
+  const result = await api("/api/security-findings/approve", {method: "POST", body: JSON.stringify({findingIds: ids, note})});
+  selectedSecurity.clear();
+  transientStatus = `${result.batchId} 已进入 Scout 执行队列；尚未开始执行。`;
+  await loadState();
 }
 
 async function decideEngineeringAction(id, decision) {
@@ -1280,6 +1367,29 @@ document.addEventListener("click", (event) => {
   if (!btn) return;
   const enabled = btn.getAttribute("data-enabled") === "true";
   updateEmployee(btn.getAttribute("data-emp-toggle"), { enabled: !enabled });
+});
+
+$("securitySlaFilter")?.addEventListener("change", renderSecurityWorkbench);
+$("securityPlanFilter")?.addEventListener("change", renderSecurityWorkbench);
+$("securitySelectAll")?.addEventListener("change", (event) => {
+  filteredSecurityFindings().filter((item) => item.status === "open" && ["canExecute", "needConfirmation", "dedicatedFlow"].includes(item.remediation_bucket)).forEach((item) => {
+    if (event.target.checked) selectedSecurity.add(item.id); else selectedSecurity.delete(item.id);
+  });
+  renderSecurityWorkbench();
+});
+$("approveSecurityBtn")?.addEventListener("click", approveSelectedSecurity);
+$("securityDetailClose")?.addEventListener("click", () => $("securityDetailDialog").close());
+document.addEventListener("change", (event) => {
+  const checkbox = event.target.closest("[data-security-check]");
+  if (!checkbox) return;
+  if (checkbox.checked) selectedSecurity.add(checkbox.dataset.securityCheck); else selectedSecurity.delete(checkbox.dataset.securityCheck);
+  renderSecurityWorkbench();
+});
+document.addEventListener("click", (event) => {
+  const detail = event.target.closest("[data-security-detail]");
+  if (detail) showSecurityDetail(detail.dataset.securityDetail);
+  const approveOne = event.target.closest("[data-security-approve-one]");
+  if (approveOne) approveSelectedSecurity([approveOne.dataset.securityApproveOne]);
 });
 
 function renderCivilianBadge() {

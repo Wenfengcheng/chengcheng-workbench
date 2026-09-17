@@ -71,6 +71,33 @@
       </div>
     </section>
 
+    <section class="security-workbench" id="securityWorkbench" aria-labelledby="securityWorkbenchTitle">
+      <div class="security-toolbar">
+        <div>
+          <span class="section-kicker">S360 REMEDIATION CONTROL</span>
+          <h2 id="securityWorkbenchTitle">漏洞与修复工作台</h2>
+          <p class="subtitle">查看逐条漏洞、扫描证据、当前与历史修复方案；批准后由 Scout 重新检查基线并领取执行。</p>
+        </div>
+        <div class="toolbar">
+          <select class="filter-select" id="securitySlaFilter" aria-label="按 SLA 筛选">
+            <option value="all">全部 SLA</option><option value="Past SLA">Past SLA</option><option value="Near SLA">Near SLA</option><option value="In SLA">In SLA</option>
+          </select>
+          <select class="filter-select" id="securityPlanFilter" aria-label="按修复状态筛选">
+            <option value="all">全部方案</option><option value="actionable">可审批</option><option value="unmapped">待规划</option>
+          </select>
+          <button class="btn primary" id="approveSecurityBtn" type="button" disabled>批准选中项</button>
+        </div>
+      </div>
+      <div class="security-summary" id="securitySummary"></div>
+      <div class="security-table-wrap">
+        <table class="security-table">
+          <thead><tr><th><input type="checkbox" id="securitySelectAll" aria-label="全选当前筛选结果"></th><th>SLA / CVSS</th><th>镜像与漏洞</th><th>环境</th><th>修复路由</th><th>状态</th><th></th></tr></thead>
+          <tbody id="securityFindings"><tr><td colspan="7" class="empty">正在读取 S360 明细…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="batch-strip" id="securityBatches"></div>
+    </section>
+
     <section class="metric-strip">
       <a class="card metric metric-link" href="metric-detail.html?metric=approvals"><span class="metric-icon">审</span><div class="metric-body"><div class="metric-value" id="approvalCount">0</div><div class="metric-label">待审批</div></div></a>
       <a class="card metric metric-link" href="metric-detail.html?metric=urgent"><span class="metric-icon">急</span><div class="metric-body"><div class="metric-value" id="urgentCount">0</div><div class="metric-label">紧急 / 高优事项</div></div></a>
@@ -186,6 +213,11 @@
         <button class="btn" id="cancelApprovalFeedbackBtn" type="button">取消</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog class="security-detail-dialog" id="securityDetailDialog">
+    <div id="securityDetailBody"></div>
+    <div class="toolbar detail-close"><button class="btn" id="securityDetailClose" type="button">关闭</button></div>
   </dialog>
 
   <dialog class="decision-dialog add-emp-dialog" id="addEmployeeDialog">
