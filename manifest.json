@@ -1,12 +1,12 @@
 {
-  "name": "dream-team-for-microsoft-scout",
-  "displayName": "The Dream Team for Microsoft Scout",
-  "version": "4.3.1",
+  "name": "chengcheng-workbench",
+  "displayName": "程程工作台",
+  "version": "0.2.0",
   "license": "MIT",
-  "author": "Shervin Shaffie",
-  "audience": "Public - any Microsoft Scout user (Windows)",
+  "author": "Wenfeng Cheng; based on The Dream Team by Shervin Shaffie",
+  "audience": "Personal - Chengcheng's Microsoft Scout workspace (Windows)",
   "platform": "Windows only",
-  "description": "A local-first command center and a composable team of eight digital employees for Microsoft Scout. Runs entirely on your own machine on Scout-native tools; sign in with Microsoft to optionally unlock extra internal depth skills. Add or remove your own employees. Includes the app, the orchestrator and setup skills, the background automations, and a guided setup wizard with a setup doctor.",
+  "description": "A Chinese-first, local DevOps and Security workbench for Microsoft Scout. Four responsibility lanes coordinate S360 security, deployment and release, pipeline incidents, Azure cost, meetings, approvals, and evidence-backed work tracking.",
   "entrypoints": {
     "scoutInstall": "INSTALL-WITH-SCOUT.md",
     "install": "install.ps1",
@@ -29,7 +29,8 @@
   },
   "bundledSkills": [
     "daily-flow-team",
-    "daily-flow-setup"
+    "daily-flow-setup",
+    "chengcheng-workbench"
   ],
   "prerequisiteScoutBundledSkills": [
     "docx",
@@ -44,8 +45,8 @@
   "tiers": {
     "baseline": {
       "appliesTo": "Everyone (no corporate sign-in required)",
-      "runsOn": "The two bundled skills (daily-flow-team, daily-flow-setup) + Scout built-in skills (docx, pptx, xlsx, excalidraw, web-artifacts) + WorkIQ for your own email/Teams/calendar/OneDrive.",
-      "capability": "Full eight-employee team: inbox triage and replies, meeting prep and notes-to-actions, research with citations, scheduling, document/deck/sheet/diagram creation, dashboards, the approval inbox, trust levels, and the always-on automations."
+      "runsOn": "The three bundled skills (daily-flow-team, daily-flow-setup, chengcheng-workbench) + Scout built-in skills and WorkIQ for the user's own Microsoft 365 context.",
+      "capability": "Four responsibility lanes and five live operational views: S360 security, deployment/release, pipeline/incidents, Azure cost, and meetings/action items, with evidence and exact-action approval gates."
     },
     "microsoftUpgrade": {
       "appliesTo": "Microsoft employees who sign in during setup",

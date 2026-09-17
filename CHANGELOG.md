@@ -1,6 +1,13 @@
 # Changelog
 
-## Chengcheng Workbench 0.1.0 (unreleased)
+## Chengcheng Workbench 0.2.0 (unreleased)
+
+- Added a SQLite-backed current snapshot contract for five operational lanes and exposed it through `GET/POST /api/ops-lanes`.
+- Replaced static homepage shortcuts with live cards that show status, headline, metrics, actionable items, evidence count, owner, and refresh time.
+- Kept empty states explicit so a missing data refresh is never presented as a healthy system.
+- Updated package metadata and provenance for the Chengcheng Workbench fork.
+
+## Chengcheng Workbench 0.1.0
 
 - Forked the upstream Dream Team into a Chinese-first DevOps and Security workbench.
 - Reduced the default roster from eight fictional employees to four explicit responsibility lanes: orchestration/approval, security/release, collaboration/meetings, and operations/cost.
