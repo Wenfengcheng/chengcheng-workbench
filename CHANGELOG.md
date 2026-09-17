@@ -1,6 +1,14 @@
 # Changelog
 
-## Chengcheng Workbench 0.3.0 (unreleased)
+## Chengcheng Workbench 0.4.0 (unreleased)
+
+- Added a dedicated Chinese engineering action approval center for Pipeline retry, Security Tag, deployment, ADO update, and cloud-change proposals.
+- Every proposal requires an exact target and exact action and can carry environment, risk, prechecks, rollback/stop conditions, and evidence.
+- Approval records intent only: `executionEnabled=false` remains a hard API contract and no executor exists in this release.
+- Added a deterministic Teams remote-control API prototype supporting status, pending proposals, and approve/reject/defer commands.
+- Documented Scout Teams Bot integration, identity, anti-replay, digest binding, and local second-confirmation boundaries.
+
+## Chengcheng Workbench 0.3.0
 
 - Added read-only S360 and Pipeline collectors that convert existing local evidence artifacts into the live lane contract.
 - S360 cards now summarize scan rows, Past SLA, Near SLA, daily changes, Phase 3 integrity, and evidence paths from the latest deterministic artifacts.
