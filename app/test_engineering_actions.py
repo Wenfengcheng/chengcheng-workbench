@@ -20,4 +20,9 @@ class EngineeringActionTests(unittest.TestCase):
   with self.assertRaises(ValueError):app.decide_engineering_action(item['id'],'approved')
  def test_requires_exact_target_and_action(self):
   with self.assertRaises(ValueError):app.create_engineering_action({'lane':'pipeline','actionType':'pipeline-retry','title':'bad'})
+ def test_remote_status_and_approval_never_execute(self):
+  status=app.remote_control('状态');self.assertEqual('status',status['kind']);self.assertFalse(status['executionEnabled'])
+  item=app.create_engineering_action(self.payload());result=app.remote_control('批准 '+item['id']);self.assertEqual('approved',result['action']['status']);self.assertFalse(result['executionEnabled']);self.assertIn('未执行',result['message'])
+ def test_remote_unknown_command_returns_help(self):
+  result=app.remote_control('部署 prod');self.assertFalse(result['ok']);self.assertEqual('help',result['kind'])
 if __name__=='__main__':unittest.main()

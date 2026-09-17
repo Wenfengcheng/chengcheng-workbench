@@ -3986,6 +3986,29 @@ def decide_engineering_action(action_id: str, decision: str, note: str = "") -> 
     return _engineering_action(row)
 
 
+def remote_control(command: str) -> dict[str, Any]:
+    """Deterministic, non-executing command surface intended for Scout Teams Bot."""
+    text = " ".join(command.strip().split())
+    lowered = text.lower()
+    if lowered in {"状态", "status", "工作台状态"}:
+        lanes = get_ops_lanes()["lanes"]
+        return {"ok": True, "kind": "status", "executionEnabled": False,
+                "summary": [{"lane": x["lane"], "title": x["title"], "status": x["status"],
+                             "headline": x["headline"], "observedAt": x["observedAt"]} for x in lanes]}
+    if lowered in {"待审批", "approvals", "工程提案"}:
+        actions = [x for x in list_engineering_actions()["actions"] if x["status"] == "proposed"]
+        return {"ok": True, "kind": "approvals", "executionEnabled": False, "actions": actions}
+    match = re.fullmatch(r"(批准|拒绝|稍后|approve|reject|defer)\s+([A-Za-z0-9_-]+)", text, re.IGNORECASE)
+    if match:
+        decisions = {"批准": "approved", "拒绝": "rejected", "稍后": "deferred",
+                     "approve": "approved", "reject": "rejected", "defer": "deferred"}
+        action = decide_engineering_action(match.group(2), decisions[match.group(1).lower()])
+        return {"ok": True, "kind": "decision", "executionEnabled": False, "action": action,
+                "message": "决定已记录；执行器未启用，未执行任何工程操作。"}
+    return {"ok": False, "kind": "help", "executionEnabled": False,
+            "error": "unsupported command", "supported": ["状态", "待审批", "批准 <id>", "拒绝 <id>", "稍后 <id>"]}
+
+
 _REQUIRED_AUTOMATIONS = (
     "Daily Flow Morning Brief",
     "Daily Flow Evening Wrap-up",
@@ -4500,6 +4523,10 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path == "/api/engineering-actions":
                 action = create_engineering_action(self.read_json())
                 self.send_json({"ok": True, "action": action}, HTTPStatus.CREATED)
+                return
+            if parsed.path == "/api/remote-control":
+                data = self.read_json()
+                self.send_json(remote_control(str(data.get("command") or "")))
                 return
             if parsed.path.startswith("/api/engineering-actions/") and parsed.path.endswith("/decision"):
                 parts = parsed.path.strip("/").split("/")
