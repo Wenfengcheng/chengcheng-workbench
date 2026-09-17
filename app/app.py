@@ -855,6 +855,32 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS engineering_actions (
+                id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                lane TEXT NOT NULL,
+                action_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                target TEXT NOT NULL,
+                environment TEXT NOT NULL DEFAULT '',
+                risk TEXT NOT NULL DEFAULT 'high',
+                exact_action TEXT NOT NULL,
+                rationale TEXT NOT NULL DEFAULT '',
+                prechecks_json TEXT NOT NULL DEFAULT '[]',
+                rollback TEXT NOT NULL DEFAULT '',
+                evidence_json TEXT NOT NULL DEFAULT '[]',
+                source TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'proposed',
+                decision_note TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE TRIGGER IF NOT EXISTS preserve_engineering_actions_delete
+            BEFORE DELETE ON engineering_actions
+            BEGIN
+                SELECT RAISE(ABORT, 'Retention policy: engineering action history is preserved. Update status instead.');
+            END;
+
             CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, created_at);
             CREATE INDEX IF NOT EXISTS idx_jobs_thread ON jobs(thread_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_messages_thread ON chat_messages(thread_id, created_at);
@@ -3891,6 +3917,75 @@ def upsert_ops_lane(data: dict[str, Any]) -> dict[str, Any]:
     return next(item for item in get_ops_lanes()["lanes"] if item["lane"] == lane)
 
 
+ENGINEERING_ACTION_TYPES = {"pipeline-retry", "security-tag", "deployment", "ado-update", "cloud-change"}
+ENGINEERING_ACTION_STATUSES = {"proposed", "approved", "rejected", "deferred", "executed", "blocked"}
+
+
+def _engineering_action(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+    item = dict(row)
+    item["prechecks"] = _safe_json_list(item.pop("prechecks_json", "[]"))
+    item["evidence"] = _safe_json_list(item.pop("evidence_json", "[]"))
+    item["executionEnabled"] = False
+    return item
+
+
+def list_engineering_actions() -> dict[str, Any]:
+    with connect() as db:
+        actions = [_engineering_action(row) for row in db.execute(
+            "SELECT * FROM engineering_actions ORDER BY created_at DESC LIMIT 200"
+        )]
+    return {"actions": actions, "executionEnabled": False, "serverTime": utc_now()}
+
+
+def create_engineering_action(data: dict[str, Any]) -> dict[str, Any]:
+    lane = str(data.get("lane") or "").strip().lower()
+    action_type = str(data.get("actionType") or "").strip().lower()
+    if lane not in OPS_LANES:
+        raise ValueError(f"lane must be one of: {', '.join(OPS_LANES)}")
+    if action_type not in ENGINEERING_ACTION_TYPES:
+        raise ValueError(f"actionType must be one of: {', '.join(sorted(ENGINEERING_ACTION_TYPES))}")
+    required = {key: str(data.get(key) or "").strip() for key in ("title", "target", "exactAction")}
+    missing = [key for key, value in required.items() if not value]
+    if missing:
+        raise ValueError(f"missing required fields: {', '.join(missing)}")
+    prechecks, evidence = data.get("prechecks") or [], data.get("evidence") or []
+    if not isinstance(prechecks, list) or not isinstance(evidence, list):
+        raise ValueError("prechecks and evidence must be arrays")
+    now, action_id = utc_now(), new_id("engact")
+    with connect() as db:
+        db.execute(
+            "INSERT INTO engineering_actions(id,created_at,updated_at,lane,action_type,title,target,environment,risk,exact_action,rationale,prechecks_json,rollback,evidence_json,source,status) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'proposed')",
+            (action_id, now, now, lane, action_type, required["title"], required["target"],
+             str(data.get("environment") or "")[:80], str(data.get("risk") or "high")[:20],
+             required["exactAction"], str(data.get("rationale") or "")[:1200],
+             json.dumps(prechecks, ensure_ascii=False), str(data.get("rollback") or "")[:1200],
+             json.dumps(evidence, ensure_ascii=False), str(data.get("source") or "")[:200]),
+        )
+        touch_version(db)
+        row = db.execute("SELECT * FROM engineering_actions WHERE id = ?", (action_id,)).fetchone()
+    return _engineering_action(row)
+
+
+def decide_engineering_action(action_id: str, decision: str, note: str = "") -> dict[str, Any]:
+    decision = decision.strip().lower()
+    if decision not in {"approved", "rejected", "deferred"}:
+        raise ValueError("decision must be approved, rejected, or deferred")
+    with connect() as db:
+        current = db.execute("SELECT * FROM engineering_actions WHERE id = ?", (action_id,)).fetchone()
+        if not current:
+            raise LookupError("engineering action not found")
+        if current["status"] != "proposed":
+            raise ValueError(f"action is already {current['status']}")
+        db.execute("UPDATE engineering_actions SET status=?, decision_note=?, updated_at=? WHERE id=?",
+                   (decision, note[:1200], utc_now(), action_id))
+        touch_version(db)
+        row = db.execute("SELECT * FROM engineering_actions WHERE id = ?", (action_id,)).fetchone()
+    # Approval records intent only. Execution stays disabled until a future
+    # executor is separately designed, reviewed, and explicitly enabled.
+    return _engineering_action(row)
+
+
 _REQUIRED_AUTOMATIONS = (
     "Daily Flow Morning Brief",
     "Daily Flow Evening Wrap-up",
@@ -4341,6 +4436,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/ops-lanes":
             self.send_json(get_ops_lanes())
             return
+        if parsed.path == "/api/engineering-actions":
+            self.send_json(list_engineering_actions())
+            return
         if parsed.path.startswith("/api/jobs/"):
             parts = parsed.path.strip("/").split("/")
             if len(parts) != 3 or not parts[2]:
@@ -4398,6 +4496,19 @@ class Handler(BaseHTTPRequestHandler):
                 data = self.read_json()
                 lane = upsert_ops_lane(data)
                 self.send_json({"ok": True, "lane": lane})
+                return
+            if parsed.path == "/api/engineering-actions":
+                action = create_engineering_action(self.read_json())
+                self.send_json({"ok": True, "action": action}, HTTPStatus.CREATED)
+                return
+            if parsed.path.startswith("/api/engineering-actions/") and parsed.path.endswith("/decision"):
+                parts = parsed.path.strip("/").split("/")
+                if len(parts) != 4:
+                    self.send_json({"ok": False, "error": "invalid engineering action route"}, HTTPStatus.NOT_FOUND)
+                    return
+                data = self.read_json()
+                action = decide_engineering_action(parts[2], str(data.get("decision") or ""), str(data.get("note") or ""))
+                self.send_json({"ok": True, "action": action})
                 return
             if parsed.path == "/api/chat":
                 data = self.read_json()
