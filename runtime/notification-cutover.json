@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "policy": "single-owner",
+  "targetOwner": "Microsoft Scout Teams Bot",
+  "shadowMode": {
+    "scoutTeamsNotify": "never",
+    "legacyOpenClawDeliveryRemains": true,
+    "reason": "Prevent duplicate notifications before a chain is cut over."
+  },
+  "cutoverTransaction": [
+    "Verify three consecutive Scout shadow runs with matching evidence",
+    "Set Scout automation teamsNotify to the chain cutover value",
+    "Run one explicit Scout Teams Bot notification probe",
+    "Read back the Teams Bot message/session evidence",
+    "Disable the matching OpenClaw Cron delivery and job",
+    "Read back both schedulers and prove Scout is the only enabled owner",
+    "Monitor the next scheduled Scout run and its Teams delivery"
+  ],
+  "rollbackTransaction": [
+    "Disable the Scout automation",
+    "Re-enable the exact legacy OpenClaw Cron only if the operator explicitly approves rollback",
+    "Verify one notification owner before leaving rollback"
+  ],
+  "chains": {
+    "s360-daily": {"teamsNotify": "always", "content": "Daily report outcome and exact evidence; zero-vulnerability days included"},
+    "s360-orchestrator": {"teamsNotify": "auto", "content": "Only actionable changes, blockers, or failures"},
+    "s360-phase3": {"teamsNotify": "auto", "content": "Only tag-plan approval candidates, mismatches, blockers, or failures"},
+    "pbi-cost-daily": {"teamsNotify": "always", "content": "Actual, run-rate, budget variance, model verification, and evidence digest"},
+    "meeting-scheduler": {"teamsNotify": "auto", "content": "Meeting briefs or action items only when grounded in calendar/transcript evidence"},
+    "weekly-build-monitor": {"teamsNotify": "auto", "content": "Failures, in-progress exceptions, retry proposals, or weekly all-green digest"}
+  },
+  "forbiddenAfterCutover": [
+    "openclaw-weixin",
+    "OpenClaw cron announce",
+    "OpenClaw message tool",
+    "email notification to owner",
+    "duplicate Teams sends from both framework and m_send_teams_message"
+  ],
+  "currentState": "DECLARED_NOT_CUT_OVER"
+}
