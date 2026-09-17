@@ -30,18 +30,20 @@ function Get-ScoutSkillRoots {
   # THIS machine's Scout reads from. (This is the fix for skills landing in the wrong folder.)
   $homeDir = $env:USERPROFILE
   $candidates = @('.scout','.copilot','.copilot-cloud','.copilot-dev')
-  $markers = @('m-skills','m-sessions','m-automations','m-settings.json','config.json','session-store.db')
+  $markers = @('skills','m-skills','m-sessions','m-automations','m-settings.json','config.json','session-store.db')
   $roots = @()
   foreach ($name in $candidates) {
     $root = Join-Path $homeDir $name
     if (-not (Test-Path $root)) { continue }
     $isScout = $false
     foreach ($m in $markers) { if (Test-Path (Join-Path $root $m)) { $isScout = $true; break } }
-    if ($isScout) { $roots += (Join-Path $root 'm-skills') }
+    # Current Scout reads user-installed skills from `skills`. `m-skills` is a
+    # legacy/internal location and must not be treated as the canonical target.
+    if ($isScout) { $roots += (Join-Path $root 'skills') }
   }
   if ($roots.Count -eq 0) {
     # Nothing detected (rare). Install to both common names so Scout cannot miss it.
-    $roots = @((Join-Path $homeDir '.scout\m-skills'), (Join-Path $homeDir '.copilot\m-skills'))
+    $roots = @((Join-Path $homeDir '.scout\skills'), (Join-Path $homeDir '.copilot\skills'))
   }
   return $roots
 }
@@ -131,9 +133,9 @@ if ($IsUpgrade) {
   Write-Host ("       Upgrading {0} -> v{1}. Your local database, settings, and any employees you added are kept; the database migrates automatically on first launch." -f $verLabel, $NewVersion) -ForegroundColor Cyan
 }
 
-# 3. Install/refresh skills into EVERY detected Scout skills root.
-#    Fresh install: keep any same-named skill the user already has (don't clobber). daily-flow-setup
-#    is always refreshed. UPGRADE: refresh ALL of this package's bundled skills to the new version.
+# 3. Install skills create-only into EVERY detected Scout skills root.
+#    Never delete or overwrite an existing same-named skill. Upgrades are staged
+#    through version control and require an explicit operator decision.
 $installed = @(); $kept = @(); $updated = @()
 foreach ($root in $SkillRoots) {
   $MSkills = [string]$root
@@ -141,20 +143,16 @@ foreach ($root in $SkillRoots) {
   Get-ChildItem -Directory $SkillsSrc | ForEach-Object {
     $name = $_.Name; $dest = Join-Path $MSkills $name
     $exists = Test-Path $dest
-    if ($name -eq 'daily-flow-setup' -or $IsUpgrade -or -not $exists) {
-      # Remove first so Copy-Item -Recurse overwrites cleanly instead of nesting (dest\name\name).
-      if ($exists) { Remove-Item -LiteralPath $dest -Recurse -Force -ErrorAction SilentlyContinue }
+    if (-not $exists) {
       Copy-Item -LiteralPath $_.FullName -Destination $dest -Recurse -Force
-      if ($exists -and $name -ne 'daily-flow-setup') { if ($updated -notcontains $name) { $updated += $name } }
-      elseif (-not $exists) { if ($installed -notcontains $name) { $installed += $name } }
+      if ($installed -notcontains $name) { $installed += $name }
     }
     elseif ($exists) { if ($kept -notcontains $name) { $kept += $name } }
   }
 }
 $rootLabels = $SkillRoots | ForEach-Object { $_.Replace($env:USERPROFILE, '~') }
 if ($IsUpgrade) {
-  Write-Host "[ok] Refreshed team skills to v$NewVersion ($($SkillRoots.Count) skills folder(s))."
-  if ($updated.Count -gt 0) { Write-Host "[info] Updated: $($updated -join ', ')" -ForegroundColor DarkGray }
+  Write-Host "[ok] Checked Scout skills for v$NewVersion ($($SkillRoots.Count) skills folder(s)); existing skills were preserved."
 } else {
   Write-Host "[ok] Installed team skills into Scout ($($SkillRoots.Count) skills folder(s)):"
   foreach ($rl in $rootLabels) { Write-Host "      $rl" -ForegroundColor DarkGray }
