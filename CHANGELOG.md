@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.2-shadow — Scout synchronization and dashboard operability
+
+- Synchronized 16 reviewed Chengcheng Workbench and S360/pipeline skills create-only into `~/.scout/skills`, each with an explicit Scout compatibility/fail-closed contract.
+- Synchronized all seven declared Scout automations into Scout's native store: six unsafe/incomplete chains remain disabled and notification-silent; the existing Azure Cost Shadow remains the only enabled silent chain.
+- Kept legacy-path or OpenClaw-dependent skill segments blocked instead of pretending they are executable in Scout.
+- Fixed the 132-row S360 table being clipped by its parent: the finding region now has a bounded independent scroll area and sticky table header.
+- Added actionable-first ordering, per-row accessibility labels, explicit unmapped reasons, a sticky approval dock, and a persistent Scout execution/Teams synchronization panel.
+- Added semantic main/progress landmarks and compacted long finding details for a denser, more usable 1440p control surface.
+
 ## 0.7.0-shadow — Teams approval and execution synchronization
 
 - Unified browser and Microsoft Scout Teams Bot approvals on the same S360 findings, immutable execution batches, fingerprints, event history, and audit state.

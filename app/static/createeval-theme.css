@@ -293,7 +293,7 @@ html[data-theme="dark"] .focus-card:hover { background: var(--cp-surface-soft); 
   border-radius: 9px;
   background: var(--cp-surface);
   box-shadow: 0 1px 3px rgba(15, 23, 42, .05);
-  overflow: hidden;
+  overflow: visible;
 }
 .security-toolbar {
   display: flex;
@@ -310,7 +310,7 @@ html[data-theme="dark"] .focus-card:hover { background: var(--cp-surface-soft); 
 .security-summary .bad b { color: var(--cp-danger); }
 .security-summary .warn b { color: var(--cp-warning); }
 .security-summary .good b { color: var(--cp-success); }
-.security-table-wrap { overflow: auto; max-height: 660px; }
+.security-table-wrap { overflow: auto; height: min(62vh, 720px); min-height: 420px; overscroll-behavior: contain; border-bottom: 1px solid var(--cp-border); }
 .security-table { width: 100%; border-collapse: collapse; min-width: 1120px; }
 .security-table th { position: sticky; top: 0; z-index: 2; padding: 10px 12px; background: #f8fafc; color: var(--cp-text-muted); font-size: 11px; text-align: left; border-bottom: 1px solid var(--cp-border); }
 .security-table td { padding: 12px; border-bottom: 1px solid var(--cp-border); vertical-align: top; font-size: 12px; }
@@ -319,13 +319,24 @@ html[data-theme="dark"] .focus-card:hover { background: var(--cp-surface-soft); 
 .security-table td:nth-child(4) { max-width: 190px; }
 .security-table td:nth-child(5) { width: 170px; }
 .security-table strong { display: block; font-size: 13px; }
-.security-table small { display: block; margin-top: 4px; color: var(--cp-text-muted); line-height: 1.35; }
+.security-table small { display: -webkit-box; margin-top: 4px; color: var(--cp-text-muted); line-height: 1.4; font-size: 11px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .finding-row:hover { background: #f8fbff; }
 .row-actions { display: flex; gap: 6px; }
 .sla-badge { display: inline-block; padding: 3px 7px; border-radius: 999px; background: #f1f5f9; color: var(--cp-text-soft); font-size: 10px; }
 .sla-past-sla .sla-badge { background: #fef2f2; color: #b91c1c; }
 .sla-near-sla .sla-badge { background: #fffbeb; color: #a16207; }
 .cvss { margin-top: 7px; font-size: 19px !important; font-variant-numeric: tabular-nums; }
+.execution-console { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 20px; border-bottom: 1px solid var(--cp-border); background: linear-gradient(90deg, #f8fbff, var(--cp-surface)); }
+.exec-main, .execution-console > div { min-width: 0; display: grid; gap: 4px; flex: 1; }
+.exec-kicker { color: var(--cp-accent); font-size: 9px; font-weight: 700; letter-spacing: .11em; }
+.execution-console strong { font-size: 13px; }
+.execution-console small { color: var(--cp-text-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exec-progress { width: min(540px, 100%); height: 5px; margin-top: 5px; border-radius: 99px; overflow: hidden; background: #dbe7f1; }
+.exec-progress span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #0078d4, #36a9e8); }
+.teams-chip { flex: 0 0 auto; padding: 6px 9px; border: 1px solid #c4b5fd; border-radius: 999px; background: #f5f3ff; color: #6d28d9; font-size: 10px; font-weight: 700; }
+.teams-chip.idle { border-color: var(--cp-border); background: var(--cp-surface-soft); color: var(--cp-text-muted); }
+.teams-chip.failed { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+.security-action-dock { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 20px; border-top: 1px solid var(--cp-border); border-bottom: 1px solid var(--cp-border); background: rgba(255,255,255,.95); backdrop-filter: blur(12px); color: var(--cp-text-muted); font-size: 11px; }
 .batch-strip { display: flex; flex-wrap: wrap; gap: 10px 18px; padding: 12px 20px; background: var(--cp-surface-soft); color: var(--cp-text-muted); font-size: 11px; }
 .security-detail-dialog { width: min(920px, calc(100vw - 32px)); max-height: 90vh; overflow: auto; border: 1px solid var(--cp-border); border-radius: 10px; background: var(--cp-surface); color: var(--cp-text); padding: 24px; box-shadow: var(--cp-shadow); }
 .security-detail-dialog::backdrop { background: rgba(15, 23, 42, .45); }
@@ -366,6 +377,8 @@ html[data-theme="dark"] .focus-card:hover { background: var(--cp-surface-soft); 
   .security-toolbar { align-items: stretch; flex-direction: column; }
   .security-toolbar .toolbar { justify-content: flex-start; }
   .security-summary { gap: 10px; flex-wrap: wrap; }
+  .execution-console, .security-action-dock { align-items: stretch; flex-direction: column; }
+  .execution-console small { white-space: normal; }
   .detail-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {

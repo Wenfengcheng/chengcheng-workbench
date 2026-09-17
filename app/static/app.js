@@ -327,7 +327,32 @@ function filteredSecurityFindings() {
     if (plan === "actionable" && !actionable) return false;
     if (plan === "unmapped" && actionable) return false;
     return true;
+  }).sort((a, b) => {
+    const aa = a.status === "open" && ["canExecute", "needConfirmation", "dedicatedFlow"].includes(a.remediation_bucket) ? 0 : 1;
+    const bb = b.status === "open" && ["canExecute", "needConfirmation", "dedicatedFlow"].includes(b.remediation_bucket) ? 0 : 1;
+    return aa - bb;
   });
+}
+
+const BATCH_STAGE = {
+  approved_pending_scout: ["等待 Scout", 12], claimed_pending_live_preflight: ["实时预检", 28],
+  in_progress: ["执行中", 62], verified: ["S360 已清除", 100], verified_cleared: ["S360 已清除", 100],
+  blocked_preflight: ["预检阻塞", 34], blocked_stale_approval: ["需要重新批准", 20],
+  requires_reapproval: ["需要重新批准", 20], failed: ["执行失败", 72]
+};
+
+function renderSecurityExecution() {
+  const host = $("securityExecution");
+  if (!host) return;
+  const active = securityBatches.find((batch) => !["verified", "failed", "requires_reapproval", "blocked_preflight", "blocked_stale_approval"].includes(batch.status)) || securityBatches[0];
+  if (!active) {
+    host.innerHTML = `<div><span class="exec-kicker">SCOUT EXECUTION</span><strong>尚无执行批次</strong><small>网页与 Teams 使用同一审批队列；批准后将在这里显示预检、执行、验证与通知状态。</small></div><span class="teams-chip idle">Teams · 待命</span>`;
+    return;
+  }
+  const latest = (active.events || [])[0];
+  const [label, percent] = BATCH_STAGE[active.status] || [active.status, 50];
+  const teams = active.status === "failed" ? "需关注" : active.status === "verified" ? "已同步" : "同步中";
+  host.innerHTML = `<div class="exec-main"><span class="exec-kicker">SCOUT EXECUTION · ${escapeHtml(active.id)}</span><strong>${escapeHtml(label)} · ${active.findingIds.length} 项</strong><small>${escapeHtml(latest?.message || "批次状态已写入工作台，Scout Teams Bot 将同步关键阶段。")}</small><div class="exec-progress" role="progressbar" aria-label="S360 执行进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><span style="width:${percent}%"></span></div></div><span class="teams-chip ${active.status === "failed" ? "failed" : ""}">Teams · ${escapeHtml(teams)}</span>`;
 }
 
 function renderSecurityWorkbench() {
@@ -342,8 +367,12 @@ function renderSecurityWorkbench() {
     <span class="warn"><b>${near}</b> Near SLA</span><span class="good"><b>${actionable.length}</b> 可进入审批</span>
     <span><b>${selectedSecurity.size}</b> 已选择</span>`;
   const button = $("approveSecurityBtn");
+  const dockButton = $("approveSecurityDockBtn");
   button.disabled = selectedSecurity.size === 0;
   button.textContent = selectedSecurity.size ? `批准选中项 (${selectedSecurity.size})` : "批准选中项";
+  dockButton.disabled = button.disabled;
+  dockButton.textContent = button.textContent;
+  $("securitySelectionHint").textContent = selectedSecurity.size ? `已选择 ${selectedSecurity.size} 项。批准后 Scout 仍会重新验证摘要、Pod、Main SHA、Dockerfile 与 Tag 基线。` : `当前 ${actionable.length} 项可审批；待规划项不能选择，避免猜测仓库或修复路线。`;
   const all = $("securitySelectAll");
   const visibleOpen = visible.filter((item) => item.status === "open");
   all.checked = visibleOpen.length > 0 && visibleOpen.every((item) => selectedSecurity.has(item.id));
@@ -352,16 +381,17 @@ function renderSecurityWorkbench() {
     const route = item.repository || item.remediation?.dedicatedSkill || "尚未映射";
     const selectable = item.status === "open" && ["canExecute", "needConfirmation", "dedicatedFlow"].includes(item.remediation_bucket);
     return `<tr class="finding-row sla-${escapeHtml(item.sla.replaceAll(" ", "-").toLowerCase())}">
-      <td><input type="checkbox" data-security-check="${escapeHtml(item.id)}" ${selectedSecurity.has(item.id) ? "checked" : ""} ${selectable ? "" : "disabled"}></td>
+      <td><input type="checkbox" data-security-check="${escapeHtml(item.id)}" aria-label="选择 ${escapeHtml(item.image)}，${escapeHtml(item.sla)}，CVSS ${Number(item.max_cvss).toFixed(1)}" ${selectedSecurity.has(item.id) ? "checked" : ""} ${selectable ? "" : "disabled"}></td>
       <td><span class="sla-badge">${escapeHtml(item.sla)}</span><strong class="cvss">${Number(item.max_cvss).toFixed(1)}</strong><small>到期 ${escapeHtml(item.earliest_due || "—")}</small></td>
       <td><strong>${escapeHtml(item.image)}</strong><small>${escapeHtml(item.vulnerability_name)}</small><small>${item.vulnerability_count} 个漏洞 · ${escapeHtml(item.registry)}</small></td>
       <td><span>${escapeHtml(item.namespaces || "—")}</span><small>${escapeHtml(item.clusters || "")}</small></td>
       <td><strong>${escapeHtml(route)}</strong><small>${escapeHtml(SECURITY_BUCKET[item.remediation_bucket] || item.remediation_bucket)}</small></td>
-      <td><span class="status ${escapeHtml(item.status)}">${escapeHtml(item.status === "open" ? "待处理" : item.status)}</span></td>
+      <td><span class="status ${escapeHtml(item.status)}">${escapeHtml(item.status === "open" ? (selectable ? "可审批" : "待规划") : item.status)}</span>${!selectable && item.status === "open" ? `<small>缺少可信修复映射</small>` : ""}</td>
       <td><div class="row-actions"><button class="btn" type="button" data-security-detail="${escapeHtml(item.id)}">详情</button>${selectable ? `<button class="btn primary" type="button" data-security-approve-one="${escapeHtml(item.id)}">批准</button>` : ""}</div></td>
     </tr>`;
   }).join("") : `<tr><td colspan="7" class="empty">当前筛选条件下没有漏洞。</td></tr>`;
-  $("securityBatches").innerHTML = securityBatches.length ? `<strong>最近执行批次</strong>${securityBatches.slice(0, 4).map((batch) => `<span>${escapeHtml(batch.id)} · ${batch.findingIds.length} 项 · ${escapeHtml(batch.status)}</span>`).join("")}` : "尚无已批准执行批次。";
+  $("securityBatches").innerHTML = securityBatches.length ? `<strong>最近执行批次</strong>${securityBatches.slice(0, 4).map((batch) => `<span>${escapeHtml(batch.id)} · ${batch.findingIds.length} 项 · ${escapeHtml(BATCH_STAGE[batch.status]?.[0] || batch.status)}</span>`).join("")}` : "尚无已批准执行批次。";
+  renderSecurityExecution();
 }
 
 function showSecurityDetail(id) {
@@ -1378,6 +1408,7 @@ $("securitySelectAll")?.addEventListener("change", (event) => {
   renderSecurityWorkbench();
 });
 $("approveSecurityBtn")?.addEventListener("click", approveSelectedSecurity);
+$("approveSecurityDockBtn")?.addEventListener("click", approveSelectedSecurity);
 $("securityDetailClose")?.addEventListener("click", () => $("securityDetailDialog").close());
 document.addEventListener("change", (event) => {
   const checkbox = event.target.closest("[data-security-check]");

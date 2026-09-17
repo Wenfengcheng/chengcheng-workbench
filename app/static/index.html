@@ -21,10 +21,10 @@
     })();
   </script>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="createeval-theme.css?v=20260917">
+  <link rel="stylesheet" href="createeval-theme.css?v=20260917b">
 </head>
 <body>
-  <div class="shell">
+  <main class="shell" id="mainContent">
     <header class="hero">
       <div>
         <span class="hero-eyebrow">DEVOPS · SECURITY OPERATIONS</span>
@@ -89,13 +89,18 @@
         </div>
       </div>
       <div class="security-summary" id="securitySummary"></div>
+      <div class="execution-console" id="securityExecution" aria-live="polite"></div>
       <div class="security-table-wrap">
         <table class="security-table">
           <thead><tr><th><input type="checkbox" id="securitySelectAll" aria-label="全选当前筛选结果"></th><th>SLA / CVSS</th><th>镜像与漏洞</th><th>环境</th><th>修复路由</th><th>状态</th><th></th></tr></thead>
           <tbody id="securityFindings"><tr><td colspan="7" class="empty">正在读取 S360 明细…</td></tr></tbody>
         </table>
       </div>
-      <div class="batch-strip" id="securityBatches"></div>
+      <div class="security-action-dock" id="securityActionDock" aria-live="polite">
+        <span id="securitySelectionHint">选择可审批项后，可生成一个不可变 Scout 执行批次。</span>
+        <button class="btn primary" id="approveSecurityDockBtn" type="button" disabled>批准选中项</button>
+      </div>
+      <div class="batch-strip" id="securityBatches" aria-label="最近执行批次"></div>
     </section>
 
     <section class="metric-strip">
@@ -195,7 +200,7 @@
         </div>
       </div>
     </section>
-  </div>
+  </main>
 
   <dialog class="decision-dialog" id="approvalFeedbackDialog">
     <form id="approvalFeedbackForm">
