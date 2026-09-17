@@ -4,6 +4,7 @@
 
 - Added a create-only, credential-free Azure Cost package manifest and packager for the canonical Scout Runtime Root.
 - Reused the host Azure CLI login as the runtime authentication boundary; every deterministic step explicitly selects `AzureCloud` or `AzureChinaCloud` and its target subscription before requesting a token.
+- Converted the earlier profile-provisioning helper into a compatibility login/context verifier so the repository no longer contains conflicting three-profile guidance.
 - Added fail-closed Scout preflight checks for Python, `requests`, Azure CLI, package completeness, runtime isolation, and all required Global/China subscriptions.
 - Added a notification-silent cost Shadow wrapper with package-local immutable evidence output.
 - Created the independent v0.5.1 package at `~/.scout/runtime/packages/chengcheng-cost-monitor-v0.5.1`; no Azure token cache or profile is copied into it.
