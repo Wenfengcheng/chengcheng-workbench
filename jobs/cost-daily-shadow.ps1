@@ -8,4 +8,7 @@ $Wrapper = Join-Path $ScoutRuntimeRoot 'jobs\cost-daily-shadow.py'
 python $Preflight --package-root $PackageRoot
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 python $Wrapper --package-root $PackageRoot
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$Publisher = Join-Path $ScoutRuntimeRoot 'scripts\publish_cost_lane.py'
+python $Publisher --package-root $PackageRoot
 exit $LASTEXITCODE
