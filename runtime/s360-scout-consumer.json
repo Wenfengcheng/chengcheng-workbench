@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "name": "程程工作台 - S360 已批准批次消费者",
+  "state": "disabled-template",
+  "schedule": "every 5 minutes",
+  "teamsNotify": "auto",
+  "steps": [
+    {
+      "label": "Claim",
+      "prompt": "Claim at most one approved batch with scripts/claim_security_batch.py. No batch is a silent no-op. Claim is not permission to execute."
+    },
+    {
+      "label": "Live preflight",
+      "prompt": "Read the create-only envelope. Invoke only its allowlisted route-specific security skill. Re-read S360 digest, live Pod image/tag/commit, repository main SHA, Dockerfile FROM, Git tags and build state. Create an exact plan bound to the envelope SHA256. Any changed baseline requires reapproval and zero execution."
+    },
+    {
+      "label": "Bounded execution",
+      "prompt": "Execute only the exact digest-bound plan represented by the approved envelope. Follow route-specific skill gates and staged eDog -> verify -> Prod where applicable. Never infer repository, image, tag, or environment."
+    },
+    {
+      "label": "Verify and synchronize",
+      "prompt": "Collect PR/tag/build/deployment/Pod/S360 evidence and call record_security_batch_result.py. Verified requires S360 cleared. Drain the Workbench Teams outbox: send each claimed item to the user's Scout Teams Bot 1:1 chat, then acknowledge it. Never send the same event twice."
+    }
+  ],
+  "allowlistedSkills": [
+    "container-security-fix",
+    "istio-security-fix",
+    "mise-security-fix",
+    "admin-ui-rebuild",
+    "swagger-ui-rebuild"
+  ]
+}

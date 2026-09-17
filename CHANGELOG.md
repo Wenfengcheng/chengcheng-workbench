@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0-shadow — Teams approval and execution synchronization
+
+- Unified browser and Microsoft Scout Teams Bot approvals on the same S360 findings, immutable execution batches, fingerprints, event history, and audit state.
+- Bound the localhost remote-control API to a per-install random Workbench–Scout adapter credential, so a local caller cannot authorize work merely by claiming to be `scout-teams-bot`.
+- Added Teams-safe finding preview and digest-bound single/bulk approval; decisions require a bound Scout personal chat, explicit confirmation, exact preview digest, and idempotent Teams request ID.
+- Added append-only execution progress events for claim, preflight, plan-ready, execution, verification, and terminal outcomes.
+- Added a retryable Teams notification outbox with unique event keys, ten-minute claim leases, provider delivery acknowledgement, five-attempt retry, and dead-letter state.
+- Added a Scout-side atomic batch consumer that revalidates the approval fingerprint, groups findings into remediation units, and emits a create-only execution envelope; claim never grants execution permission.
+- Added fail-closed terminal result recording: verified requires non-empty preflight, execution, and verification evidence plus an S360-cleared final state.
+- Added a disabled Scout consumer template and packaged its claim/result/Teams tools into every create-only stable Workbench install.
+- Added a pending Skill Workshop proposal for the Scout Teams Bot contract; it is not applied without explicit approval.
+
 ## 0.6.0-shadow — operational Workbench vertical slice
 
 - Replaced the summary-only S360 experience with a detailed vulnerability and remediation workspace.

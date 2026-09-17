@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import hmac
 import html
 import io
 import json
@@ -61,6 +62,7 @@ def _setting(config_key: str, env_key: str, default):
 
 PORT = int(_setting("port", "DAILY_FLOW_PORT", 8787))
 LOG_REQUESTS = str(_setting("logRequests", "DAILY_FLOW_LOG_REQUESTS", "")).strip().lower() in {"1", "true", "yes", "on"}
+REMOTE_CONTROL_TOKEN = str(_setting("remoteControlToken", "DAILY_FLOW_REMOTE_CONTROL_TOKEN", "")).strip()
 ATTENTION_MAJOR_COOLDOWN_MINUTES = 25
 
 
@@ -918,6 +920,37 @@ def init_db() -> None:
                 result_json TEXT NOT NULL DEFAULT '{}'
             );
 
+            CREATE TABLE IF NOT EXISTS execution_batch_events (
+                id TEXT PRIMARY KEY,
+                batch_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                stage TEXT NOT NULL,
+                status TEXT NOT NULL,
+                message TEXT NOT NULL DEFAULT '',
+                evidence_json TEXT NOT NULL DEFAULT '[]',
+                source TEXT NOT NULL DEFAULT '',
+                event_key TEXT NOT NULL UNIQUE,
+                FOREIGN KEY(batch_id) REFERENCES execution_batches(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS teams_notification_outbox (
+                id TEXT PRIMARY KEY,
+                event_key TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                severity TEXT NOT NULL DEFAULT 'info',
+                event_type TEXT NOT NULL,
+                batch_id TEXT NOT NULL DEFAULT '',
+                title TEXT NOT NULL,
+                message TEXT NOT NULL,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL DEFAULT 'pending',
+                claimed_at TEXT NOT NULL DEFAULT '',
+                sent_at TEXT NOT NULL DEFAULT '',
+                delivery_id TEXT NOT NULL DEFAULT '',
+                last_error TEXT NOT NULL DEFAULT '',
+                attempt_count INTEGER NOT NULL DEFAULT 0
+            );
+
             CREATE TABLE IF NOT EXISTS remote_control_audit (
                 request_id TEXT PRIMARY KEY,
                 created_at TEXT NOT NULL,
@@ -944,6 +977,8 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_sweep_runs_started ON sweep_runs(started_at);
             CREATE INDEX IF NOT EXISTS idx_security_findings_status ON security_findings(status, sla, max_cvss);
             CREATE INDEX IF NOT EXISTS idx_execution_batches_status ON execution_batches(status, created_at);
+            CREATE INDEX IF NOT EXISTS idx_execution_batch_events_batch ON execution_batch_events(batch_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_teams_outbox_status ON teams_notification_outbox(status, created_at);
 
             CREATE TRIGGER IF NOT EXISTS preserve_approvals_delete
             BEFORE DELETE ON approvals
@@ -986,6 +1021,12 @@ def init_db() -> None:
             BEGIN
                 SELECT RAISE(ABORT, 'Retention policy: work and impact ledger history is preserved forever.');
             END;
+
+            CREATE TRIGGER IF NOT EXISTS preserve_execution_batch_events_delete
+            BEFORE DELETE ON execution_batch_events
+            BEGIN
+                SELECT RAISE(ABORT, 'Retention policy: execution batch events are preserved forever.');
+            END;
             """
         )
         # --- Additive migrations (3.0.0): progressive trust + per-agent protocol ---
@@ -1006,6 +1047,7 @@ def init_db() -> None:
         ensure_column(db, "employees", "skills_json", "TEXT NOT NULL DEFAULT '[]'")
         ensure_column(db, "employees", "source_text", "TEXT NOT NULL DEFAULT ''")
         ensure_column(db, "employees", "note", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(db, "teams_notification_outbox", "attempt_count", "INTEGER NOT NULL DEFAULT 0")
         db.execute(
             "INSERT INTO app_meta(key, value, updated_at) VALUES('history_retention_policy', ?, ?) "
             "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
@@ -4060,9 +4102,18 @@ def list_security_findings() -> dict[str, Any]:
         batches = [dict(row) for row in db.execute(
             "SELECT * FROM execution_batches ORDER BY created_at DESC LIMIT 50"
         )]
+        events = [dict(row) for row in db.execute(
+            "SELECT * FROM execution_batch_events ORDER BY created_at DESC LIMIT 200"
+        )]
     for batch in batches:
         batch["findingIds"] = _safe_json_list(batch.pop("finding_ids_json", "[]"))
         batch["result"] = json.loads(batch.pop("result_json", "{}") or "{}")
+        batch["events"] = []
+    by_id = {batch["id"]: batch for batch in batches}
+    for event in events:
+        event["evidence"] = _safe_json_list(event.pop("evidence_json", "[]"))
+        if event["batch_id"] in by_id:
+            by_id[event["batch_id"]]["events"].append(event)
     return {"findings": findings, "batches": batches, "serverTime": utc_now()}
 
 
@@ -4119,13 +4170,138 @@ def approve_security_batch(data: dict[str, Any]) -> dict[str, Any]:
              str(data.get("note") or "")[:1200], "workbench")
         )
         db.execute(f"UPDATE security_findings SET status='approved_pending_scout' WHERE id IN ({placeholders})", ids)
+        event_key = f"{batch_id}:approval:approved"
+        event_id = f"secevt_{hashlib.sha256(event_key.encode()).hexdigest()[:24]}"
+        message = f"已批准 {len(ids)} 条 S360 漏洞进入 Scout 执行队列。"
+        db.execute("INSERT INTO execution_batch_events(id,batch_id,created_at,stage,status,message,evidence_json,source,event_key) VALUES(?,?,?,?,?,?,'[]',?,?)",
+                   (event_id, batch_id, now, "approval", "approved_pending_scout", message,
+                    str(data.get("source") or "workbench")[:80], event_key))
+        notification_id = f"teams_{hashlib.sha256(event_key.encode()).hexdigest()[:24]}"
+        db.execute("INSERT INTO teams_notification_outbox(id,event_key,created_at,severity,event_type,batch_id,title,message,payload_json,status) VALUES(?,?,?,?,?,?,?,?,?,'pending')",
+                   (notification_id, event_key, now, "info", "security-batch-approved", batch_id,
+                    "S360 修复批次已批准", message,
+                    json.dumps({"batchId": batch_id, "findingIds": ids, "planFingerprint": fingerprint}, ensure_ascii=False)))
         touch_version(db)
     return {"ok": True, "batchId": batch_id, "status": "approved_pending_scout", "findingIds": ids,
             "planFingerprint": fingerprint, "executionStarted": False,
             "message": "批准已进入 Scout 执行队列；Scout 领取前会重新验证基线、摘要和计划指纹。"}
 
 
-def _remote_control_result(command: str) -> dict[str, Any]:
+def security_approval_preview(ids: list[str]) -> dict[str, Any]:
+    clean = list(dict.fromkeys(str(value).strip() for value in ids if str(value).strip()))
+    if not clean or len(clean) > 100:
+        raise ValueError("findingIds must contain 1-100 ids")
+    placeholders = ",".join("?" for _ in clean)
+    with connect() as db:
+        rows_found = [dict(row) for row in db.execute(
+            f"SELECT * FROM security_findings WHERE id IN ({placeholders}) AND status='open'", clean)]
+    if len(rows_found) != len(clean):
+        raise ValueError("one or more findings are missing, closed, or already queued")
+    blocked = [row["id"] for row in rows_found if row["remediation_bucket"] not in {"canExecute", "needConfirmation", "dedicatedFlow"}]
+    if blocked:
+        raise ValueError(f"findings require planning: {', '.join(blocked)}")
+    canonical = [{"id": row["id"], "repository": row["repository"], "scanDigest": row["scan_digest"],
+                  "remediation": json.loads(row["remediation_json"] or "{}")} for row in sorted(rows_found, key=lambda x: x["id"])]
+    digest = hashlib.sha256(json.dumps(canonical, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+    return {"findingIds": clean, "count": len(clean), "planFingerprint": digest,
+            "pastSla": len([row for row in rows_found if row["sla"] == "Past SLA"]),
+            "nearSla": len([row for row in rows_found if row["sla"] == "Near SLA"]),
+            "maxCvss": max(float(row["max_cvss"] or 0) for row in rows_found),
+            "targets": [{"id": row["id"], "image": row["image"], "vulnerability": row["vulnerability_name"],
+                         "sla": row["sla"], "route": row["repository"] or json.loads(row["remediation_json"] or "{}").get("dedicatedSkill", "")}
+                        for row in rows_found]}
+
+
+def claim_teams_notifications(limit: int = 20) -> dict[str, Any]:
+    limit = max(1, min(int(limit), 50))
+    timestamp = utc_now()
+    with connect() as db:
+        db.execute("BEGIN IMMEDIATE")
+        # A Scout/Teams process can die after claim and before acknowledgement.
+        # Reclaim only expired leases; event_key uniqueness still prevents duplicates
+        # inside the Workbench while deliveryId readback handles provider retries.
+        lease_cutoff = (datetime.now(tz=ZoneInfo("UTC")) - timedelta(minutes=10)).isoformat()
+        pending = [dict(row) for row in db.execute(
+            "SELECT * FROM teams_notification_outbox WHERE status='pending' OR "
+            "(status='claimed' AND claimed_at!='' AND claimed_at<?) ORDER BY created_at LIMIT ?",
+            (lease_cutoff, limit))]
+        if pending:
+            placeholders = ",".join("?" for _ in pending)
+            db.execute(f"UPDATE teams_notification_outbox SET status='claimed',claimed_at=? WHERE id IN ({placeholders}) AND (status='pending' OR (status='claimed' AND claimed_at<?))",
+                       [timestamp, *[item["id"] for item in pending], lease_cutoff])
+        touch_version(db)
+    for item in pending:
+        item["payload"] = json.loads(item.pop("payload_json", "{}") or "{}")
+    return {"ok": True, "notifications": pending, "count": len(pending)}
+
+
+def acknowledge_teams_notification(notification_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    status = str(data.get("status") or "sent").strip().lower()
+    if status not in {"sent", "failed"}:
+        raise ValueError("status must be sent or failed")
+    with connect() as db:
+        row = db.execute("SELECT * FROM teams_notification_outbox WHERE id=?", (notification_id,)).fetchone()
+        if not row:
+            raise LookupError("notification not found")
+        if row["status"] in {"sent", "dead_letter"}:
+            return {"ok": True, "replayed": True, "status": row["status"]}
+        if row["status"] != "claimed":
+            raise ValueError(f"notification is not claimed: {row['status']}")
+        if status == "sent":
+            db.execute("UPDATE teams_notification_outbox SET status='sent',sent_at=?,delivery_id=?,last_error='' WHERE id=?",
+                       (utc_now(), str(data.get("deliveryId") or "")[:300], notification_id))
+            final_status = "sent"
+        else:
+            attempts = int(row["attempt_count"] or 0) + 1
+            final_status = "dead_letter" if attempts >= 5 else "pending"
+            db.execute("UPDATE teams_notification_outbox SET status=?,claimed_at='',attempt_count=?,last_error=? WHERE id=?",
+                       (final_status, attempts, str(data.get("error") or "unknown Teams delivery failure")[:1200], notification_id))
+        touch_version(db)
+    return {"ok": True, "status": final_status}
+
+
+EXECUTION_PROGRESS_STAGES = {"preflight", "plan_ready", "executing", "verifying"}
+
+
+def record_execution_batch_progress(batch_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    stage = str(data.get("stage") or "").strip().lower()
+    if stage not in EXECUTION_PROGRESS_STAGES:
+        raise ValueError(f"stage must be one of: {', '.join(sorted(EXECUTION_PROGRESS_STAGES))}")
+    message = str(data.get("message") or "").strip()
+    if not message:
+        raise ValueError("message is required")
+    evidence = data.get("evidence") or []
+    if not isinstance(evidence, list):
+        raise ValueError("evidence must be an array")
+    event_key = str(data.get("eventKey") or "").strip()
+    if not event_key:
+        raise ValueError("eventKey is required for idempotency")
+    event_key = f"{batch_id}:progress:{event_key[:180]}"
+    timestamp = utc_now()
+    with connect() as db:
+        batch = db.execute("SELECT * FROM execution_batches WHERE id=?", (batch_id,)).fetchone()
+        if not batch:
+            raise LookupError("batch not found")
+        if batch["status"] not in {"claimed_pending_live_preflight", "in_progress"}:
+            raise ValueError(f"batch state does not accept progress: {batch['status']}")
+        existing = db.execute("SELECT * FROM execution_batch_events WHERE event_key=?", (event_key,)).fetchone()
+        if existing:
+            return {"ok": True, "replayed": True, "eventId": existing["id"], "stage": existing["stage"]}
+        event_id = f"secevt_{hashlib.sha256(event_key.encode()).hexdigest()[:24]}"
+        db.execute("INSERT INTO execution_batch_events(id,batch_id,created_at,stage,status,message,evidence_json,source,event_key) VALUES(?,?,?,?,?,?,?,?,?)",
+                   (event_id, batch_id, timestamp, stage, "in_progress", message[:1200],
+                    json.dumps(evidence, ensure_ascii=False), "scout-consumer", event_key))
+        db.execute("UPDATE execution_batches SET status='in_progress',updated_at=? WHERE id=?", (timestamp, batch_id))
+        notification_id = f"teams_{hashlib.sha256(event_key.encode()).hexdigest()[:24]}"
+        db.execute("INSERT INTO teams_notification_outbox(id,event_key,created_at,severity,event_type,batch_id,title,message,payload_json,status) VALUES(?,?,?,?,?,?,?,?,?,'pending')",
+                   (notification_id, event_key, timestamp, "info", "security-batch-progress", batch_id,
+                    f"S360 修复进度 · {stage}", message[:1200],
+                    json.dumps({"batchId": batch_id, "stage": stage, "evidence": evidence}, ensure_ascii=False)))
+        touch_version(db)
+    return {"ok": True, "eventId": event_id, "stage": stage, "status": "in_progress"}
+
+
+def _remote_control_result(command: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Parse one already-authenticated deterministic remote command."""
     text = " ".join(command.strip().split())
     lowered = text.lower()
@@ -4136,7 +4312,26 @@ def _remote_control_result(command: str) -> dict[str, Any]:
                              "headline": x["headline"], "observedAt": x["observedAt"]} for x in lanes]}
     if lowered in {"待审批", "approvals", "工程提案"}:
         actions = [x for x in list_engineering_actions()["actions"] if x["status"] == "proposed"]
-        return {"ok": True, "kind": "approvals", "executionEnabled": False, "actions": actions}
+        security = [item for item in list_security_findings()["findings"]
+                    if item["status"] == "open" and item["remediation_bucket"] in {"canExecute", "needConfirmation", "dedicatedFlow"}]
+        return {"ok": True, "kind": "approvals", "executionEnabled": True, "actions": actions,
+                "securityFindings": security[:50], "securityFindingCount": len(security)}
+    match = re.fullmatch(r"(?:查看|preview)\s+(?:漏洞\s+)?([A-Za-z0-9_, -]+)", text, re.IGNORECASE)
+    if match:
+        ids = [value for value in re.split(r"[,\s]+", match.group(1)) if value]
+        return {"ok": True, "kind": "security-approval-preview", "executionEnabled": True,
+                "requiresConfirmation": True, "preview": security_approval_preview(ids)}
+    match = re.fullmatch(r"(?:批准漏洞|approve-findings)\s+([A-Za-z0-9_, -]+)", text, re.IGNORECASE)
+    if match:
+        ids = [value for value in re.split(r"[,\s]+", match.group(1)) if value]
+        preview = security_approval_preview(ids)
+        expected = str(context.get("expectedDigest") or "") if context else ""
+        if not expected or expected != preview["planFingerprint"]:
+            return {"ok": False, "kind": "denied", "executionEnabled": False,
+                    "error": "expectedDigest from the confirmed preview is required", "preview": preview}
+        batch = approve_security_batch({"findingIds": ids, "note": str(context.get("note") or "") if context else "",
+                                        "source": "scout-teams-bot"})
+        return {"ok": True, "kind": "security-approval", "executionEnabled": True, "batch": batch}
     match = re.fullmatch(r"(批准|拒绝|稍后|approve|reject|defer)\s+([A-Za-z0-9_-]+)", text, re.IGNORECASE)
     if match:
         decisions = {"批准": "approved", "拒绝": "rejected", "稍后": "deferred",
@@ -4162,15 +4357,19 @@ def remote_control(data: dict[str, Any]) -> dict[str, Any]:
             response = json.loads(prior["response_json"])
             response["replayed"] = True
             return response
-    decision_command = bool(re.fullmatch(r"(批准|拒绝|稍后|approve|reject|defer)\s+[A-Za-z0-9_-]+", command, re.IGNORECASE))
-    if source != "scout-teams-bot" or conversation_type != "personal":
+    decision_command = bool(re.fullmatch(r"(批准|拒绝|稍后|approve|reject|defer)\s+[A-Za-z0-9_-]+", command, re.IGNORECASE)) or bool(re.fullmatch(r"(?:批准漏洞|approve-findings)\s+[A-Za-z0-9_, -]+", command, re.IGNORECASE))
+    supplied_token = str(data.get("authToken") or "")
+    if REMOTE_CONTROL_TOKEN and not hmac.compare_digest(supplied_token, REMOTE_CONTROL_TOKEN):
+        result = {"ok": False, "kind": "denied", "executionEnabled": False,
+                  "error": "invalid Scout Workbench adapter credential"}
+    elif source != "scout-teams-bot" or conversation_type != "personal":
         result = {"ok": False, "kind": "denied", "executionEnabled": False,
                   "error": "remote control is restricted to the bound Scout Teams Bot personal chat"}
     elif decision_command and data.get("userConfirmed") is not True:
         result = {"ok": False, "kind": "denied", "executionEnabled": False,
                   "error": "userConfirmed=true is required for a decision"}
     else:
-        result = _remote_control_result(command)
+        result = _remote_control_result(command, data)
     result["requestId"] = request_id
     result["source"] = source
     with connect() as db:
@@ -4704,6 +4903,24 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/security-findings/approve":
                 self.send_json(approve_security_batch(self.read_json()), HTTPStatus.CREATED)
+                return
+            if parsed.path == "/api/teams-notifications/claim":
+                data = self.read_json()
+                self.send_json(claim_teams_notifications(int(data.get("limit") or 20)))
+                return
+            if parsed.path.startswith("/api/teams-notifications/") and parsed.path.endswith("/ack"):
+                parts = parsed.path.strip("/").split("/")
+                if len(parts) != 4:
+                    self.send_json({"ok": False, "error": "invalid notification route"}, HTTPStatus.NOT_FOUND)
+                    return
+                self.send_json(acknowledge_teams_notification(parts[2], self.read_json()))
+                return
+            if parsed.path.startswith("/api/execution-batches/") and parsed.path.endswith("/progress"):
+                parts = parsed.path.strip("/").split("/")
+                if len(parts) != 4:
+                    self.send_json({"ok": False, "error": "invalid execution batch route"}, HTTPStatus.NOT_FOUND)
+                    return
+                self.send_json(record_execution_batch_progress(parts[2], self.read_json()))
                 return
             if parsed.path == "/api/remote-control":
                 data = self.read_json()

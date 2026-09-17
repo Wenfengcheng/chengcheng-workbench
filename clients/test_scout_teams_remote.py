@@ -10,7 +10,7 @@ class ClientTests(unittest.TestCase):
    def __exit__(self,*args):pass
    def read(self):return b'{"ok":true,"executionEnabled":false}'
   with patch('scout_teams_remote.urlopen',return_value=Response()) as opener:
-   result=call_remote('http://127.0.0.1:8787','状态','msg-1')
+   result=call_remote('http://127.0.0.1:8787','状态','msg-1',auth_token='secret')
    body=opener.call_args.args[0].data.decode('utf-8')
-  self.assertTrue(result['ok']);self.assertIn('scout-teams-bot',body);self.assertIn('personal',body)
+  self.assertTrue(result['ok']);self.assertIn('scout-teams-bot',body);self.assertIn('personal',body);self.assertIn('secret',body)
 if __name__=='__main__':unittest.main()

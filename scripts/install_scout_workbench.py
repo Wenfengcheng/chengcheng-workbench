@@ -5,11 +5,18 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
+import secrets
 import shutil
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SOURCE = REPO / "app"
 INCLUDE = ["app.py", "preflight.ps1", "start-app.ps1", "stop-app.ps1", "static", "data"]
+RUNTIME_TOOLS = [
+    REPO / "scripts" / "claim_security_batch.py",
+    REPO / "scripts" / "record_security_batch_result.py",
+    REPO / "clients" / "scout_teams_remote.py",
+    REPO / "runtime" / "s360-scout-consumer.json",
+]
 
 
 def main() -> int:
@@ -30,7 +37,14 @@ def main() -> int:
             shutil.copytree(source, target, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "daily-flow-app.pid"))
         else:
             shutil.copy2(source, target)
-    (destination / "config.json").write_text(json.dumps({"port": args.port, "logRequests": False}, indent=2), encoding="utf-8")
+    tools = destination / "runtime-tools"
+    tools.mkdir(exist_ok=False)
+    for source in RUNTIME_TOOLS:
+        if not source.is_file():
+            raise RuntimeError(f"Required runtime tool missing: {source}")
+        shutil.copy2(source, tools / source.name)
+    (destination / "config.json").write_text(json.dumps({"port": args.port, "logRequests": False,
+        "remoteControlToken": secrets.token_urlsafe(32)}, indent=2), encoding="utf-8")
     print(f"PASS: installed stable Scout Workbench create-only at {destination} on port {args.port}")
     return 0
 
