@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "targetRuntime": "Microsoft Scout",
+  "openClawRuntimeAllowedAfterCutover": false,
+  "generatedAt": "2026-09-17T16:47:00+08:00",
+  "status": "PACKAGING_BLOCKED",
+  "rules": {
+    "scoutRoot": "{{SCOUT_RUNTIME_ROOT}}",
+    "forbiddenPathFragments": [".concordia-client", "openclaw-weixin", "agent:main", "memory/"],
+    "shadowWritesAllowed": false,
+    "shadowNotificationsAllowed": false,
+    "cutoverMinimumConsecutiveGreenRuns": 3
+  },
+  "chains": [
+    {
+      "id": "s360-daily",
+      "sourceSchedule": "0 9 * * * Asia/Shanghai",
+      "sourceEntrypoint": "s360_daily_query_runner.py",
+      "scoutAutomation": "程程工作台 - S360 每日报告 Shadow",
+      "migrationState": "BLOCKED_HARDCODED_PATHS",
+      "blockers": ["WORKSPACE is an absolute .concordia-client path", "vulnerability-reporting-vnext scripts contain workspace-specific paths", "mail/WeChat delivery must be replaced by Scout Teams or disabled"],
+      "cutoverSideEffects": ["email report", "owner notification"]
+    },
+    {
+      "id": "s360-orchestrator",
+      "sourceSchedule": "30 9 * * * Asia/Shanghai",
+      "sourceEntrypoint": "s360_orchestrator_daily.py",
+      "scoutAutomation": "程程工作台 - S360 编排 Shadow",
+      "migrationState": "BLOCKED_HARDCODED_PATHS_AND_ADO_WRITES",
+      "blockers": ["ROOT and dependent skills use absolute OpenClaw paths", "current chain may update ADO lifecycle state", "ADO auth and idempotency need Scout-owned isolation"],
+      "cutoverSideEffects": ["ADO create/comment/close", "state lifecycle"]
+    },
+    {
+      "id": "s360-phase3",
+      "sourceSchedule": "45 9 * * * Asia/Shanghai",
+      "sourceEntrypoint": "s360_phase3_daily.py",
+      "scoutAutomation": "程程工作台 - S360 Phase3 Shadow",
+      "migrationState": "BLOCKED_HARDCODED_PATHS",
+      "blockers": ["ROOT and planner path are absolute", "security-tag-planner defaults reference user repo and OpenClaw paths", "kubectl/repo access must be provisioned in Scout runtime"],
+      "cutoverSideEffects": []
+    },
+    {
+      "id": "pbi-cost-daily",
+      "sourceSchedule": "45 9 * * * Asia/Shanghai",
+      "sourceEntrypoint": "fy27-cost-review/monitoring/run-pbi-cost-command-cron.py",
+      "scoutAutomation": "程程工作台 - Azure 成本每日 Shadow",
+      "migrationState": "READY_FOR_PACKAGE_RELOCATION_TEST",
+      "blockers": ["dependent scripts/data registry/history must move as one runtime package", "Azure auth must use Scout-specific config", "notification destination changes from WeChat to Teams/workbench"],
+      "cutoverSideEffects": ["owner notification"]
+    },
+    {
+      "id": "meeting-scheduler",
+      "sourceSchedule": "0 8 * * 1-5 Asia/Shanghai",
+      "sourceEntrypoint": "agentTurn using meeting-summary and Teams recap scripts",
+      "scoutAutomation": "程程工作台 - 会议调度 Shadow",
+      "migrationState": "BLOCKED_OPENCLAW_CRON_COMPOSITION",
+      "blockers": ["current job creates OpenClaw one-shot Cron jobs", "meeting-summary and recap scripts live outside Scout root", "Teams self-notes delivery must become Scout-native"],
+      "cutoverSideEffects": ["create one-shot schedules", "Teams self-notes send"]
+    },
+    {
+      "id": "weekly-build-monitor",
+      "sourceSchedule": "0 11 * * 1 Asia/Shanghai",
+      "sourceEntrypoint": "pipeline-retry/weekly-build-monitor.ps1",
+      "scoutAutomation": "程程工作台 - Weekly Build Monitor Shadow",
+      "migrationState": "BLOCKED_RETRY_SIDE_EFFECT",
+      "blockers": ["pipeline-retry skill lives under OpenClaw", "current monitor can retry builds", "ADO auth needs Scout-specific isolation"],
+      "cutoverSideEffects": ["ADO build retry"]
+    }
+  ]
+}
