@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="data:,">
-  <title>The Dream Team</title>
+  <title>程程工作台</title>
   <script>
     (() => {
       const KEY = "df-theme";
@@ -16,7 +16,7 @@
       const theme =
         (valid.includes(saved) && saved) ||
         (valid.includes(param) && param) ||
-        (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        "dark";
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
@@ -26,23 +26,23 @@
   <div class="shell">
     <header class="hero">
       <div>
-        <span class="hero-eyebrow">Daily Flow · Private command center</span>
-        <h1>The Dream Team</h1>
-        <p class="subtitle">Private command center for your digital employees. Each one runs at the trust level you set — Draft (you send), Assist (you approve, it sends), or Autonomous (it sends). Confidential content always pauses for you.</p>
+        <span class="hero-eyebrow">DEVOPS · SECURITY OPERATIONS</span>
+        <h1>程程工作台</h1>
+        <p class="subtitle">面向日常工程运营的统一指挥台。集中查看安全、发布、故障、成本与协作事项；所有对外动作仍遵循你设定的信任级别，敏感内容始终等待确认。</p>
       </div>
       <div class="toolbar">
-        <button class="btn primary" id="attentionBtn">Attention Major</button>
-        <a class="btn" href="#majorChatSection">Chat With Major</a>
-        <a class="btn" href="ledger.html">Impact Ledger</a>
-        <a class="btn" href="activity-log.html">Activity Log</a>
-        <a class="btn" href="architecture.html">Architecture map</a>
+        <button class="btn primary" id="attentionBtn">刷新全局态势</button>
+        <a class="btn" href="#majorChatSection">联系 Major</a>
+        <a class="btn" href="ledger.html">影响台账</a>
+        <a class="btn" href="activity-log.html">活动日志</a>
+        <a class="btn" href="architecture.html">架构地图</a>
         <div class="theme-switch">
-          <button class="btn" id="themeBtn" aria-haspopup="true" aria-expanded="false" title="Color theme">🎨 Theme</button>
+          <button class="btn" id="themeBtn" aria-haspopup="true" aria-expanded="false" title="界面主题">主题</button>
           <div class="theme-menu" id="themeMenu" role="menu" hidden>
-            <button class="theme-option" data-theme-set="light" role="menuitem"><span class="sw" data-sw="light"></span>Light<span class="check">✓</span></button>
-            <button class="theme-option" data-theme-set="dark" role="menuitem"><span class="sw" data-sw="dark"></span>Dark<span class="check">✓</span></button>
-            <button class="theme-option" data-theme-set="sepia" role="menuitem"><span class="sw" data-sw="sepia"></span>Sepia<span class="check">✓</span></button>
-            <button class="theme-option" data-theme-set="aurora" role="menuitem"><span class="sw" data-sw="aurora"></span>Aurora<span class="check">✓</span></button>
+            <button class="theme-option" data-theme-set="light" role="menuitem"><span class="sw" data-sw="light"></span>浅色<span class="check">✓</span></button>
+            <button class="theme-option" data-theme-set="dark" role="menuitem"><span class="sw" data-sw="dark"></span>深色<span class="check">✓</span></button>
+            <button class="theme-option" data-theme-set="sepia" role="menuitem"><span class="sw" data-sw="sepia"></span>暖色<span class="check">✓</span></button>
+            <button class="theme-option" data-theme-set="aurora" role="menuitem"><span class="sw" data-sw="aurora"></span>极光<span class="check">✓</span></button>
           </div>
         </div>
       </div>
@@ -53,27 +53,44 @@
 
     <div class="attention-banner" id="chatStatus" role="status" aria-live="polite"></div>
 
-    <section class="metric-strip">
-      <a class="card metric metric-link" href="metric-detail.html?metric=approvals"><span class="metric-icon">✅</span><div class="metric-body"><div class="metric-value" id="approvalCount">0</div><div class="metric-label">pending approvals</div></div></a>
-      <a class="card metric metric-link" href="metric-detail.html?metric=urgent"><span class="metric-icon">⚡</span><div class="metric-body"><div class="metric-value" id="urgentCount">0</div><div class="metric-label">urgent/high items</div></div></a>
-      <a class="card metric metric-link" href="metric-detail.html?metric=tasks"><span class="metric-icon">🛠️</span><div class="metric-body"><div class="metric-value" id="taskCount">0</div><div class="metric-label">open tasks</div></div></a>
-      <a class="card metric metric-link" href="metric-detail.html?metric=results"><span class="metric-icon">📄</span><div class="metric-body"><div class="metric-value" id="draftCount">0</div><div class="metric-label">linked documents</div></div></a>
+    <section class="workflow-focus" aria-labelledby="workflowFocusTitle">
+      <div class="focus-heading">
+        <div>
+          <span class="section-kicker">今日工作面</span>
+          <h2 id="workflowFocusTitle">五条运营主线</h2>
+        </div>
+        <span class="focus-stamp">LOCAL · LIVE</span>
+      </div>
+      <div class="focus-grid">
+        <a class="focus-card" href="#guardrailsSection"><span class="focus-index">01</span><strong>S360安全</strong><span>风险收敛、漏洞处置与合规护栏</span><em>安全态势</em></a>
+        <a class="focus-card" href="#resultsSection"><span class="focus-index">02</span><strong>部署发布</strong><span>变更窗口、发布准备与结果确认</span><em>变更控制</em></a>
+        <a class="focus-card" href="#approvalsSection"><span class="focus-index">03</span><strong>Pipeline / 故障</strong><span>流水线阻塞、异常定位与恢复跟进</span><em>稳定性</em></a>
+        <a class="focus-card" href="#resultsSection"><span class="focus-index">04</span><strong>Azure成本</strong><span>成本异常、资源利用率与优化建议</span><em>FinOps</em></a>
+        <a class="focus-card" href="#majorChatSection"><span class="focus-index">05</span><strong>会议与待办</strong><span>会议准备、行动项与跨团队协同</span><em>协作闭环</em></a>
+      </div>
     </section>
 
     <section class="metric-strip">
-      <a class="card metric metric-link" href="metric-detail.html?metric=review"><span class="metric-icon">📨</span><div class="metric-body"><div class="metric-value" id="inboxSignal">—</div><div class="metric-label">review signals</div></div></a>
-      <a class="card metric metric-link" href="metric-detail.html?metric=calendar"><span class="metric-icon">📅</span><div class="metric-body"><div class="metric-value" id="calendarSignal">—</div><div class="metric-label">calendar invites in inbox</div></div></a>
-      <a class="card metric metric-link" href="metric-detail.html?metric=messages"><span class="metric-icon">💬</span><div class="metric-body"><div class="metric-value" id="teamsSignal">—</div><div class="metric-label">Major thread messages</div></div></a>
-      <article class="card metric"><span class="metric-icon">🕒</span><div class="metric-body"><div class="metric-value" id="ledgerUpdated">—</div><div class="metric-label">backend last refresh</div></div></article>
+      <a class="card metric metric-link" href="metric-detail.html?metric=approvals"><span class="metric-icon">审</span><div class="metric-body"><div class="metric-value" id="approvalCount">0</div><div class="metric-label">待审批</div></div></a>
+      <a class="card metric metric-link" href="metric-detail.html?metric=urgent"><span class="metric-icon">急</span><div class="metric-body"><div class="metric-value" id="urgentCount">0</div><div class="metric-label">紧急 / 高优事项</div></div></a>
+      <a class="card metric metric-link" href="metric-detail.html?metric=tasks"><span class="metric-icon">工</span><div class="metric-body"><div class="metric-value" id="taskCount">0</div><div class="metric-label">进行中任务</div></div></a>
+      <a class="card metric metric-link" href="metric-detail.html?metric=results"><span class="metric-icon">档</span><div class="metric-body"><div class="metric-value" id="draftCount">0</div><div class="metric-label">关联文档</div></div></a>
+    </section>
+
+    <section class="metric-strip">
+      <a class="card metric metric-link" href="metric-detail.html?metric=review"><span class="metric-icon">信</span><div class="metric-body"><div class="metric-value" id="inboxSignal">—</div><div class="metric-label">待复核信号</div></div></a>
+      <a class="card metric metric-link" href="metric-detail.html?metric=calendar"><span class="metric-icon">会</span><div class="metric-body"><div class="metric-value" id="calendarSignal">—</div><div class="metric-label">收件箱会议邀请</div></div></a>
+      <a class="card metric metric-link" href="metric-detail.html?metric=messages"><span class="metric-icon">讯</span><div class="metric-body"><div class="metric-value" id="teamsSignal">—</div><div class="metric-label">Major 会话消息</div></div></a>
+      <article class="card metric"><span class="metric-icon">时</span><div class="metric-body"><div class="metric-value" id="ledgerUpdated">—</div><div class="metric-label">后端最近刷新</div></div></article>
     </section>
 
     <section class="team-roster">
       <div class="section-head">
         <div>
-          <h2>Your Daily Flow team <span id="civilianBadge" class="civilian-badge" hidden></span></h2>
-          <p class="subtitle">These are your digital team members. Major coordinates the work; each specialist owns a different part of the daily operating loop. Add your own, or remove any but Major.</p>
+          <h2>数字运营团队 <span id="civilianBadge" class="civilian-badge" hidden></span></h2>
+          <p class="subtitle">Major 负责协调，各专员覆盖不同的日常运营环节。你可以新增成员，也可以移除 Major 以外的成员。</p>
         </div>
-        <button class="btn primary" id="addEmployeeBtn" type="button">+ Add Employee</button>
+        <button class="btn primary" id="addEmployeeBtn" type="button">+ 添加成员</button>
       </div>
       <div id="onboardingCards"></div>
       <div class="employee-grid" id="employees"></div>
@@ -83,7 +100,7 @@
     <section class="card section" id="guardrailsSection" data-collapsible>
       <div class="section-head">
         <div>
-          <h2>🛡️ Guardrails</h2>
+          <h2>安全护栏</h2>
           <p class="subtitle g-sub" id="guardrailsSummary"></p>
         </div>
         <button class="collapse-toggle" type="button" aria-expanded="true" title="Collapse"><span class="chev">▾</span></button>
@@ -94,8 +111,8 @@
     <section class="card section" id="approvalsSection" data-collapsible>
       <div class="section-head">
         <div>
-          <h2>Approval inbox</h2>
-          <p class="subtitle">Grouped by source. Each group's buttons act only on that group, and the legend shows exactly what Approve, Reject, and Defer do for that item type.</p>
+          <h2>审批收件箱</h2>
+          <p class="subtitle">按来源分组处理。每组操作仅作用于该组，说明会明确标注批准、拒绝与稍后处理的影响。</p>
         </div>
         <button class="collapse-toggle" type="button" aria-expanded="true" title="Collapse"><span class="chev">▾</span></button>
       </div>
@@ -106,8 +123,8 @@
     <section class="card section" id="resultsSection" data-collapsible style="margin-top:20px;">
       <div class="section-head">
         <div>
-          <div class="title-row"><h2>Results and drafts prepared</h2><a class="btn" href="results-history.html">Previous</a></div>
-          <p class="subtitle">What the team prepared for you. Outward items show a Send control by level — "Open to send" (Draft), "Send" (Assist), or "Sent ✓" (Autonomous). Confidential items are held for your OK.</p>
+          <div class="title-row"><h2>交付结果与草稿</h2><a class="btn" href="results-history.html">历史记录</a></div>
+          <p class="subtitle">集中查看团队准备的交付物。对外内容依据信任级别显示发送控制；机密内容必须经你确认。</p>
         </div>
         <button class="collapse-toggle" type="button" aria-expanded="true" title="Collapse"><span class="chev">▾</span></button>
       </div>
@@ -117,19 +134,19 @@
     <section class="card section" id="majorChatSection" data-collapsible style="margin-top:20px;">
       <div class="section-head">
         <div>
-          <h2>Chat With Major</h2>
-          <p class="subtitle">Ask Major to get work done directly from the dashboard. Major routes internally and reports progress, completion, blockers, and result locations back in this same thread.</p>
+          <h2>联系 Major</h2>
+          <p class="subtitle">直接从工作台发起任务。Major 会进行内部分派，并在当前会话同步进度、完成情况、阻塞项与结果位置。</p>
         </div>
         <button class="collapse-toggle" type="button" aria-expanded="true" title="Collapse"><span class="chev">▾</span></button>
       </div>
       <div class="chat-shell">
         <form id="chatForm">
-          <label class="field-label" for="chatMessage">What should Major do?</label>
-          <textarea id="chatMessage" placeholder="Example: Research this customer issue, assign the right employee, and report back here with what was done and where the result is."></textarea>
+          <label class="field-label" for="chatMessage">需要 Major 处理什么？</label>
+          <textarea id="chatMessage" placeholder="例如：排查这次 Pipeline 失败，分派给合适的专员，并在这里汇报处理结果与交付位置。"></textarea>
           <div class="chat-context" id="threadContext"></div>
           <div class="toolbar" style="margin-top:12px; justify-content:flex-start;">
-            <button class="btn primary" id="sendBtn" type="submit">Send to Major</button>
-            <button class="btn" id="newThreadBtn" type="button">New thread</button>
+            <button class="btn primary" id="sendBtn" type="submit">发送给 Major</button>
+            <button class="btn" id="newThreadBtn" type="button">新建会话</button>
           </div>
         </form>
         <div>
@@ -143,16 +160,16 @@
     <form id="approvalFeedbackForm">
       <div class="section-head">
         <div>
-          <h2 id="approvalFeedbackTitle">Send decision to Major</h2>
-          <p class="subtitle">Add optional guidance if you want Major to prep, create a document, or do follow-up work after this decision.</p>
+          <h2 id="approvalFeedbackTitle">将决定交给 Major</h2>
+          <p class="subtitle">可以补充处理要求，例如准备会议材料、生成文档或继续跟进。</p>
         </div>
       </div>
       <div id="approvalFeedbackEffects" class="approval-effects"></div>
-      <label class="field-label" for="approvalFeedbackText">Optional guidance for Major</label>
-      <textarea id="approvalFeedbackText" placeholder="Examples: Prep me for this meeting. Create a one-page briefing doc. Summarize what I need to know."></textarea>
+      <label class="field-label" for="approvalFeedbackText">给 Major 的补充要求（可选）</label>
+      <textarea id="approvalFeedbackText" placeholder="例如：准备本次会议材料；生成一页式简报；总结我需要关注的风险。"></textarea>
       <div class="toolbar" style="margin-top:12px; justify-content:flex-start;">
-        <button class="btn primary" id="submitApprovalFeedbackBtn" type="submit">Send decision</button>
-        <button class="btn" id="cancelApprovalFeedbackBtn" type="button">Cancel</button>
+        <button class="btn primary" id="submitApprovalFeedbackBtn" type="submit">提交决定</button>
+        <button class="btn" id="cancelApprovalFeedbackBtn" type="button">取消</button>
       </div>
     </form>
   </dialog>
@@ -160,10 +177,10 @@
   <dialog class="decision-dialog add-emp-dialog" id="addEmployeeDialog">
     <div class="section-head">
       <div>
-        <h2 id="addEmpTitle">Add an employee</h2>
-        <p class="subtitle" id="addEmpSub">Port one of your own Scout workflows in as a first-class team member.</p>
+        <h2 id="addEmpTitle">添加责任角色</h2>
+        <p class="subtitle" id="addEmpSub">将现有 Scout 工作流接入工作台，作为新的责任泳道。</p>
       </div>
-      <button class="btn" id="addEmpCloseBtn" type="button">Close</button>
+      <button class="btn" id="addEmpCloseBtn" type="button">关闭</button>
     </div>
     <div id="addEmpBody"></div>
   </dialog>

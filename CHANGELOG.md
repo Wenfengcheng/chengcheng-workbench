@@ -1,5 +1,13 @@
 # Changelog
 
+## Chengcheng Workbench 0.1.0 (unreleased)
+
+- Forked the upstream Dream Team into a Chinese-first DevOps and Security workbench.
+- Reduced the default roster from eight fictional employees to four explicit responsibility lanes: orchestration/approval, security/release, collaboration/meetings, and operations/cost.
+- Added the `chengcheng-workbench` skill covering S360, deployment baselines, pipeline/IcM diagnosis, Azure cost models, and meeting/action follow-through.
+- Changed the application timezone to Asia/Shanghai and established read-only/create-only defaults: external sends, ADO/cloud writes, production changes, retries, calendar changes, and deletion always require exact approval.
+- Reworked the homepage around Chengcheng's five recurring work lanes while retaining the existing local API and SQLite architecture.
+
 This page lists what changed in each release of The Dream Team for Microsoft Scout, newest first.
 
 ## What the Dream Team does today

@@ -60,14 +60,14 @@ function normalizeLink(value) {
     if (!link.trim()) return null;
     const href = link.trim();
     return looksLikeOutlookItemId(href)
-      ? { label: "Open Outlook draft", href: outlookDraftHref(href), draftId: href }
-      : { label: "Open result", href };
+      ? { label: "打开 Outlook 草稿", href: outlookDraftHref(href), draftId: href }
+      : { label: "打开结果", href };
   }
   const href = link.href || link.url || link.path || "";
   if (looksLikeOutlookItemId(href)) {
-    return { label: link.label || link.title || "Open Outlook draft", href: outlookDraftHref(href), draftId: href };
+    return { label: link.label || link.title || "打开 Outlook 草稿", href: outlookDraftHref(href), draftId: href };
   }
-  const label = link.label || link.title || (String(href).includes("outlook.office.com/mail") ? "Open Outlook draft" : "Open result");
+  const label = link.label || link.title || (String(href).includes("outlook.office.com/mail") ? "打开 Outlook 草稿" : "打开结果");
   const oneDrivePath = link.oneDrivePath || "";
   return href ? { label, href, oneDrivePath, draftId: link.draftId || "" } : { label, href: "", oneDrivePath };
 }
@@ -87,8 +87,8 @@ function renderLink(value) {
   if (!link) return "";
   const href = linkHref(link.href);
   return href
-    ? `<div class="preview"><strong>Where it is:</strong> <a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(link.label)}</a></div>`
-    : `<div class="preview"><strong>Where it is:</strong> ${escapeHtml(link.href || link.label)}</div>`;
+    ? `<div class="preview"><strong>结果位置：</strong> <a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(link.label)}</a></div>`
+    : `<div class="preview"><strong>结果位置：</strong> ${escapeHtml(link.href || link.label)}</div>`;
 }
 
 function formatTime(value) {
@@ -304,12 +304,12 @@ function renderEmployees() {
         </div>
         <div class="skills">${escapeHtml(active?.title || employee.detail)}</div>
         <details class="emp-protocol" data-emp="${escapeHtml(employee.name)}"${open}>
-          <summary>Trust &amp; protocol</summary>
+          <summary>信任级别与执行协议</summary>
           <div class="proto">
             <div class="trust-label-line">${escapeHtml(employee.trustLabel || "")}</div>
-            <div class="proto-block always"><span class="proto-h">Always do</span><ul>${protoList(proto.alwaysDo)}</ul></div>
-            <div class="proto-block ask"><span class="proto-h">Ask first</span><ul>${protoList(proto.askFirst)}</ul></div>
-            <div class="proto-block never"><span class="proto-h">Never do</span><ul>${protoList(proto.neverDo)}</ul></div>
+            <div class="proto-block always"><span class="proto-h">始终执行</span><ul>${protoList(proto.alwaysDo)}</ul></div>
+            <div class="proto-block ask"><span class="proto-h">执行前确认</span><ul>${protoList(proto.askFirst)}</ul></div>
+            <div class="proto-block never"><span class="proto-h">禁止执行</span><ul>${protoList(proto.neverDo)}</ul></div>
             ${levelControl}
           </div>
         </details>
@@ -814,12 +814,12 @@ function renderSweepSummary(sweep) {
   $("chatStatus").className = "attention-banner active done";
   $("chatStatus").innerHTML = `
     <div class="work-status-top">
-      <strong>Last Attention Major sweep — ${escapeHtml(cleaned)}</strong>
-      <span>done</span>
+      <strong>最近一次全局态势刷新 — ${escapeHtml(cleaned)}</strong>
+      <span>已完成</span>
     </div>
     <div class="work-status-meta">
-      <span>Owner: Major</span>
-      <span>Swept: ${escapeHtml(formatTime(when))}</span>
+      <span>负责人：Major</span>
+      <span>刷新时间：${escapeHtml(formatTime(when))}</span>
       <span>${escapeHtml(minutesSince(when) || "just now")}</span>
     </div>
   `;
@@ -884,20 +884,20 @@ function renderMessages() {
   $("messages").innerHTML = messages.length ? messages.map((message) => `
     <article class="chat-message ${message.sender === "user" ? "user" : "major"}">
       <div class="item-top">
-        <h3>${escapeHtml(message.sender === "user" ? "You" : "Major")}</h3>
+        <h3>${escapeHtml(message.sender === "user" ? "你" : "Major")}</h3>
         <span class="${statusClass(message.status)}">${escapeHtml(message.status)}</span>
       </div>
       <div class="small-meta">
-        <span>${escapeHtml(message.sender === "user" ? "To Major" : "From Major")}</span>
+        <span>${escapeHtml(message.sender === "user" ? "发送给 Major" : "来自 Major")}</span>
         <span>${formatTime(message.created_at)}</span>
       </div>
       <div class="message-body">${escapeHtml(message.message)}</div>
       ${renderLink(message.link_json)}
       <div class="toolbar" style="margin-top:10px; justify-content:flex-start;">
-        <button data-thread="${escapeHtml(message.thread_id)}">Reply in thread</button>
+        <button data-thread="${escapeHtml(message.thread_id)}">在会话中回复</button>
       </div>
     </article>
-  `).join("") : `<div class="empty">No Major chat messages yet.</div>`;
+  `).join("") : `<div class="empty">暂无 Major 会话消息。</div>`;
   renderChatStatus();
 }
 
@@ -905,12 +905,12 @@ function renderThreadContext() {
   if (!activeThreadId) {
     $("threadContext").className = "chat-context";
     $("threadContext").textContent = "";
-    $("sendBtn").textContent = "Send to Major";
+    $("sendBtn").textContent = "发送给 Major";
     return;
   }
   $("threadContext").className = "chat-context active";
-  $("threadContext").textContent = "Replying in an existing Major thread. Your next message will stay attached to this conversation.";
-  $("sendBtn").textContent = "Reply in thread";
+  $("threadContext").textContent = "正在回复现有 Major 会话。下一条消息会继续归入当前上下文。";
+  $("sendBtn").textContent = "在会话中回复";
 }
 
 function renderFirstRunBanner() {
@@ -937,16 +937,16 @@ function renderFirstRunBanner() {
   let variant;
   if (sweepActive) {
     variant = "working";
-    title = "Your team is doing its first sweep";
-    body = "This usually takes 5 to 10 minutes, and the board fills in as it goes. You can leave this page open — it refreshes on its own.";
+    title = "团队正在执行首次全局刷新";
+    body = "通常需要 5 到 10 分钟，数据会逐步填充。页面会自动刷新，可以保持开启。";
   } else if (everCompleted) {
     variant = "clear";
-    title = "You're all caught up";
-    body = "Your team checked your email, Teams, calendar, and meetings and found nothing that needs you right now. New items show up here automatically, or press Attention Major at the top to sweep again.";
+    title = "当前事项已全部跟进";
+    body = "团队已检查邮件、Teams、日历和会议，目前没有需要你处理的事项。新信号会自动出现，也可以点击顶部“刷新全局态势”再次扫描。";
   } else {
     variant = "";
-    title = "Your board is ready to fill";
-    body = "Press Attention Major at the top to run the first sweep across your email, Teams, calendar, and meetings. It takes about 5 to 10 minutes and fills the board as it goes.";
+    title = "工作台已就绪";
+    body = "点击顶部“刷新全局态势”，首次扫描邮件、Teams、日历和会议。约需 5 到 10 分钟，数据会逐步填充。";
   }
   el.hidden = false;
   el.className = `first-run-banner${variant ? " " + variant : ""}`;

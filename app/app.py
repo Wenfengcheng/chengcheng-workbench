@@ -144,19 +144,17 @@ class LosAngelesFallbackTz(tzinfo):
 
 
 try:
-    APP_TIMEZONE = ZoneInfo("America/Los_Angeles")
+    APP_TIMEZONE = ZoneInfo("Asia/Shanghai")
 except ZoneInfoNotFoundError:
-    APP_TIMEZONE = LosAngelesFallbackTz()
+    APP_TIMEZONE = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
+# Chengcheng Workbench keeps the team deliberately small. These are operating
+# lanes inside Scout rather than fictional independent people.
 EMPLOYEES = [
-    ("Major", "Chief of Staff", "Routes work, enforces approval policy, and proactively surfaces what you should know."),
-    ("Riley", "Inbox Agent", "Triage, draft replies, route urgent asks."),
-    ("Mina", "Meeting Agent", "Prep, notes, summaries, follow-ups."),
-    ("Reese", "Research Agent", "Cited findings and customer/account context."),
-    ("Tilly", "Scheduling Agent", "Availability, RSVP risks, scheduling drafts."),
-    ("Dash", "Dashboard Agent", "Status, metrics, approval queue, check-ins."),
-    ("Drew", "Content Creator Agent", "Docs, decks, proposals, demo packs."),
-    ("Logan", "Web Agent", "Internal site, reports, demo web artifacts."),
+    ("Major", "总控与审批", "统一接收请求、分派工作、执行风险门禁，并汇总真正需要关注的事项。"),
+    ("Riley", "安全与发布", "负责 S360、容器与 Istio 安全、版本基线、部署发布和回滚证据。"),
+    ("Mina", "协作与会议", "负责定向消息、会议准备、纪要、行动项和待办闭环。"),
+    ("Dash", "运行与成本", "负责 Pipeline/IcM 运行态、阻塞项、Azure 成本和管理层工作证据。"),
 ]
 
 # Real trust ladder (low -> high). A level does exactly what it says; it is enforced in both the
@@ -172,45 +170,35 @@ TRUST_LABELS = {
 # The floor that holds at EVERY level. Replaces the old "never external" rule now that Autonomous
 # can send. Surfaced to Major so the agent enforces it.
 CARDINAL_OUTPUT_RULE = (
-    "Honor each employee's trust level exactly and never exceed it. DRAFT = prepare drafts only; you "
-    "send them. ASSIST = do reversible internal housekeeping (mark read, label, file/move) "
-    "automatically, but send to others only after you approve the prepared item in Results. "
-    "AUTONOMOUS = complete the employee's own job end to end, including outward sends, with two hard "
-    "exceptions that ALWAYS pause for you: external sends of Confidential / Highly-Confidential "
-    "content, and anything whose sensitivity cannot be determined (treat unknown as classified). "
-    "Autonomous is bounded by the employee's role — it does its defined job, never anything outside it. "
-    "Decision memory is always on at every level. Address the owner as 'you' in everything surfaced."
+    "默认只读、默认草稿、默认保留历史。任何邮件或 Teams 外发、日历变更、ADO/云资源写入、"
+    "部署审批、发布、Secret 变更、文件删除或归档，都必须获得用户针对该精确动作的明确批准。"
+    "Autonomous 仅表示可以自动完成私有分析、生成本地 HTML、刷新看板和保存证据，绝不自动扩大为外部或生产写操作。"
+    "未知敏感度按机密处理；所有结论必须附可复核证据。"
 )
 
 # Per-employee configuration: role lane, mode (adjustable dial vs fixed), default level, and an
 # optional note shown where a fixed level needs explaining.
 EMPLOYEE_CONFIG = {
     "Major": {"lane": "coordinator", "mode": "fixed", "default": "autonomous",
-              "note": "Always-on coordinator — routes work and runs sweeps for you. Any outward action happens through a specialist at that specialist's level."},
-    "Riley": {"lane": "inbox", "mode": "adjustable", "default": "draft"},
-    "Mina": {"lane": "meetings", "mode": "adjustable", "default": "draft"},
-    "Reese": {"lane": "research", "mode": "fixed", "default": "autonomous",
-              "note": "Research only — no outward action. Proactively researches and posts cited findings to Results for you; nothing is ever sent to others."},
-    "Tilly": {"lane": "scheduling", "mode": "adjustable", "default": "draft"},
-    "Dash": {"lane": "visibility", "mode": "fixed", "default": "autonomous",
-             "note": "Always keeps the cockpit current — metrics, approvals, blockers, status. Takes no mailbox or outward actions."},
-    "Drew": {"lane": "content", "mode": "adjustable", "default": "draft"},
-    "Logan": {"lane": "web", "mode": "adjustable", "default": "draft"},
+              "note": "只自动做私有编排、看板刷新与证据汇总；所有外部或生产写操作仍需精确审批。"},
+    "Riley": {"lane": "security-release", "mode": "adjustable", "default": "draft"},
+    "Mina": {"lane": "collaboration", "mode": "adjustable", "default": "draft"},
+    "Dash": {"lane": "operations-cost", "mode": "fixed", "default": "autonomous",
+             "note": "只读汇总 Pipeline、IcM、成本和工作证据，不修改生产资源。"},
 }
 
 # Role lanes for the adjustable employees: what they always do, plus the internal-housekeeping verb
 # and the outward verb used to derive the Always/Ask/Never protocol per level.
 ROLE_LANES = {
-    "inbox": {"always": ["Triage your Inbox and separate signal from noise", "Draft replies to routine mail", "Flag VIP, urgent, or time-sensitive items at the top"],
-              "internal": "file, label, and mark your mail read", "outward": "send email replies"},
-    "meetings": {"always": ["Prep each meeting — who, why, and what's needed", "Surface conflicts and unprepped meetings", "Draft notes, summaries, and follow-ups"],
-                 "internal": "organize your meeting notes and prep", "outward": "RSVP and send meeting follow-ups"},
-    "scheduling": {"always": ["Check your availability, conflicts, and RSVP risk", "Draft scheduling options and follow-up timing"],
-                   "internal": "flag conflicts and hold your focus time", "outward": "book meetings and send scheduling messages"},
-    "content": {"always": ["Create docs, decks, and proposals as drafts in Results", "Match your voice and cite sources"],
-                "internal": "save and organize your draft artifacts", "outward": "share or publish finished artifacts"},
-    "web": {"always": ["Build web artifacts and reports as drafts", "Keep your activity and impact evidence current"],
-            "internal": "update your internal logs and evidence", "outward": "publish or share web artifacts"},
+    "security-release": {
+        "always": ["核对 S360 与容器安全风险", "验证部署基线、构建状态、版本和回滚证据", "将生产或外部写操作转换为审批项"],
+        "internal": "生成只读安全与发布证据包", "outward": "执行 ADO、部署或生产变更"},
+    "collaboration": {
+        "always": ["提取定向邮件和 Teams 请求", "准备今日与次日会议", "沉淀纪要、行动项和回复草稿"],
+        "internal": "整理私有会议与协作材料", "outward": "发送消息、回复邮件或更改日历"},
+    "operations-cost": {
+        "always": ["汇总 Pipeline、IcM 与服务阻塞", "核对 Azure 成本模型与异常", "生成管理层可读的工作证据"],
+        "internal": "刷新私有运行与成本看板", "outward": "修改 Pipeline、云资源或发布报告"},
 }
 
 # DB-backed config for CUSTOM employees (origin='custom'), refreshed from the employees table by
@@ -334,7 +322,7 @@ Required signal sources and what to look for:
 6. Calendar and schedule: proactively identify anything the user should know about, with special priority on meetings to prepare for today and the next day. Check today's and tomorrow's calendar for customer/executive/external meetings, prep-heavy meetings, meetings with missing context, dense blocks, direct conflicts, tentative/unanswered items, OOF blocks, no-buffer risks, and meetings that imply follow-up or content prep. For each prep gap that needs a decision or artifact, POST /api/review-signals with sourceType='meeting-prep' so it appears in Approval inbox rather than being buried in a sweep summary.
 7. Teams/chat signals: always inspect recent Teams messages directed at the user: 1:1 chats, direct @mentions, messages naming the user, replies to the user, direct asks in group/meeting chats, and messages requesting the user's response, review, decision, or follow-up. Then scan other relevant Teams chats/messages for decisions, blockers, promised follow-ups, customer/account context, and items that should become a Daily Flow task, draft, approval, or research handoff. Treat directed Teams messages as high-priority "you should know" candidates unless clearly FYI/no-action. For every important directed Teams item, POST /api/review-signals with sourceType='teams', subject/title, sender/from, receivedAt, sourceId/chatId/messageId, sourceUrl (the Teams message webUrl deep link so the user can open the original chat), signalType, priority, summary, and recommendation so it appears in the Approval inbox or Major's sweep summary instead of being buried. Teams cards are NOT exhaustively enumerable, so never post completeSnapshot for teams; to clear a Teams card after the user has replied/handled it, pass resolvedIds=[sourceId,...] for that exact message. Do not message anyone else without approval.
 8. Meeting/action context: look for open meeting action items, follow-up commitments, prep briefs needed, decisions from recent meetings, and artifacts requested for upcoming meetings today or tomorrow.
-9. Research/WorkIQ context: check open research threads or recent work context relevant to active jobs, upcoming meetings, customer requests, drafts, and proposals. Route useful findings to Reese or Drew and cite/source them in private results.
+9. Research/WorkIQ context: check open research threads or recent work context relevant to active jobs, upcoming meetings, customer requests, drafts, and proposals. Route useful findings to Riley or Dash and cite/source them in private results.
 10. Drafts/results/documents: inspect completed work for missing or stale result links, drafts needing review, docs/decks that should be surfaced in Results, and artifacts that need to be saved under {ONEDRIVE_DOCUMENT_ROOT}.
 11. Dashboard/work-ledger health: update private events, result summaries, approval cards, blocked work, today's activity log, and concise work-ledger entries so the cockpit changes as soon as useful information is found.
 12. Body-of-work capture: when actual work is completed or discovered, POST /api/work-ledger with brief entries for meetings the user actively participated in, documents/decks/briefs/drafts/artifacts created, meaningful internal or customer collaboration, people worked with, customer/account context, research applied to work, and completed follow-up work. Write entries as the user's accomplishments, not employee actions: say "Created..." or "Prepared...", never "Drew created..." or "Mina accepted...". Capture who the work was for with people/customer/account context whenever available. Keep entries leadership-ready, bullet-friendly, and much shorter than Activity Log entries. Include impactSummary/impactLevel only when the item also meets the impact definition; do not inflate routine work into impact. Do not capture low-value internal scheduling/RSVP cleanup unless it is tied to a customer/executive/partner meeting worth reporting. When the work is about OTHERS adopting, enabling, or replicating the Dream Team / Scout (colleagues onboarded, workshops or how-to sessions delivered, mentoring, shared IP, cross-org demand or inbound interest), set category to 'adoption', 'enablement', or 'mentoring' and include the people/customer/org so it feeds the Adoption Ripple view.
@@ -357,7 +345,7 @@ OPERATING_LOOP = [
     {
         "time": "Every 30 min",
         "title": "Signal sweep",
-        "detail": "Riley, Mina, Tilly, Dash, and Reese check email, Inbox-resident calendar invites, Teams, WorkIQ context, approvals, and open research threads.",
+        "detail": "Riley, Mina, and Dash check email, Inbox-resident calendar invites, Teams, WorkIQ context, approvals, and open research threads.",
     },
     {
         "time": "Every 30 min",
@@ -367,7 +355,7 @@ OPERATING_LOOP = [
     {
         "time": "Event-triggered",
         "title": "Employee swarm",
-        "detail": "Cross-domain items pull multiple employees together, such as Riley + Reese + Drew for a researched customer reply.",
+        "detail": "Cross-domain items pull multiple employees together, such as Riley + Dash for a researched customer reply.",
     },
     {
         "time": "Continuous",
@@ -377,7 +365,7 @@ OPERATING_LOOP = [
     {
         "time": "After meaningful action",
         "title": "Impact capture",
-        "detail": "Logan records boss-ready impact highlights instead of every scan or piece of busy work.",
+        "detail": "Dash records boss-ready impact highlights instead of every scan or piece of busy work.",
     },
     {
         "time": "7:00 AM",
@@ -392,7 +380,7 @@ OPERATING_LOOP = [
     {
         "time": "5:00 PM",
         "title": "Evening wrap-up",
-        "detail": "Logan and Dash produce the private daily impact summary and carryover list.",
+        "detail": "Dash produces the private daily impact summary and carryover list.",
     },
 ]
 
@@ -952,7 +940,7 @@ def init_db() -> None:
                 (name, role, detail, utc_now()),
             )
         # Re-seed trust levels to the v3.1.0 model (Draft default for adjustable employees; fixed
-        # Autonomous for Major/Dash/Reese). Bumped to version 2 so existing installs migrate once.
+        # Autonomous for Major/Dash). Bumped to version 2 so existing installs migrate once.
         seed_flag = db.execute("SELECT value FROM app_meta WHERE key = 'employee_trust_seed_version'").fetchone()
         if not seed_flag or str(seed_flag[0]) < "2":
             for emp_name, cfg in EMPLOYEE_CONFIG.items():
@@ -1118,7 +1106,7 @@ def create_approval_follow_up_job(
         f"Recommendation shown to user: {recommendation}\n\n"
         f"User's requested deliverable or prep: {user_guidance}\n\n"
         f"Use only configured Daily Flow employees when naming an owner: {roster}. "
-        "For decks, documents, proposals, and customer-facing narratives, route content creation to Drew unless another configured employee is more appropriate. "
+        "For decks, documents, proposals, and customer-facing narratives, route content creation to Riley unless another configured employee is more appropriate. "
         "Do not invent employee names. Do not show backend API instructions to the user. "
         f"If an artifact is created, save or copy it into {ONEDRIVE_DOCUMENT_ROOT}. "
         "Report completion via /api/jobs/{jobId} with resultSummary summarizing what the artifact contains and the local file path only in the link field so Daily Flow publishes an Office web link in Results and drafts prepared. "
@@ -1174,7 +1162,7 @@ def create_review_follow_up_job(
             now = utc_now()
             db.execute(
                 "INSERT INTO jobs(id, created_at, updated_at, started_at, completed_at, employee, type, title, status, priority, source, instructions, result_summary) "
-                "VALUES(?, ?, ?, ?, ?, 'Logan', 'impact-highlight', ?, 'completed', 'normal', 'approval-inbox', ?, ?)",
+                "VALUES(?, ?, ?, ?, ?, 'Dash', 'impact-highlight', ?, 'completed', 'normal', 'approval-inbox', ?, ?)",
                 (
                     job_id,
                     now,
@@ -1186,9 +1174,9 @@ def create_review_follow_up_job(
                     user_guidance or summary,
                 ),
             )
-            add_event(db, "Logan", f"Impact highlight accepted: {subject}", user_guidance or summary)
+            add_event(db, "Dash", f"Impact highlight accepted: {subject}", user_guidance or summary)
             return job_id
-        add_event(db, "Logan", f"Impact highlight rejected: {subject}", summary)
+        add_event(db, "Dash", f"Impact highlight rejected: {subject}", summary)
         return ""
 
     if decision == "rejected" and action_type == "email":
@@ -1786,8 +1774,8 @@ def review_signal_metadata(action_type: str) -> tuple[str, str, str]:
         "commitment": ("Major", "Follow-up commitment detected", "Commitment tracking"),
         "blocked-work": ("Dash", "Blocked work needs decision", "Daily Flow blocker"),
         "outbound-draft": ("Riley", "Outbound draft ready for review", "Draft approval"),
-        "research": ("Reese", "Customer research opportunity", "Research queue"),
-        "impact-highlight": ("Logan", "Impact highlight candidate", "Impact ledger"),
+        "research": ("Riley", "Customer research opportunity", "Research queue"),
+        "impact-highlight": ("Dash", "Impact highlight candidate", "Impact ledger"),
         "stale-thread": ("Major", "Stale thread needs attention", "Major thread"),
     }.get(action_type, ("Major", "Review needed", "Daily Flow"))
 
@@ -3172,7 +3160,7 @@ WORK_LEDGER_NOISE_TERMS = (
     "approval inbox steady",
     "request logging",
 )
-WORK_LEDGER_EMPLOYEE_NAMES = ("Major", "Riley", "Mina", "Reese", "Tilly", "Dash", "Drew", "Logan")
+WORK_LEDGER_EMPLOYEE_NAMES = ("Major", "Riley", "Mina", "Dash")
 
 
 def stable_work_ledger_id(raw: dict[str, Any]) -> str:
@@ -4953,7 +4941,5 @@ def main() -> None:
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"Daily Flow App running at http://{args.host}:{args.port}")
     server.serve_forever()
-
-
 if __name__ == "__main__":
     main()
