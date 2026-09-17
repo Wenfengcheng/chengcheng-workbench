@@ -766,11 +766,65 @@ body {
   display: flex;
   flex-direction: column;
   color: inherit;
-  text-decoration: none;
   background: var(--cp-surface);
   border-right: 1px solid var(--cp-border);
   transition: background-color 140ms ease, box-shadow 140ms ease;
 }
+.focus-card { position: relative; }
+.focus-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--cp-border-strong);
+}
+.focus-card.lane-normal::before, .focus-card.lane-verified::before { background: var(--cp-success); }
+.focus-card.lane-attention::before, .focus-card.lane-waiting_approval::before { background: var(--cp-warning); }
+.focus-card.lane-blocked::before { background: var(--cp-danger); }
+.focus-card.lane-in_progress::before { background: var(--cp-accent); }
+.lane-top, .lane-foot { display: flex; justify-content: space-between; gap: 8px; }
+.lane-status {
+  color: var(--cp-text-soft);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .05em;
+}
+.lane-headline {
+  color: var(--cp-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin-top: 7px;
+}
+.lane-metrics { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+.lane-metric {
+  min-width: 52px;
+  padding: 6px 7px;
+  border: 1px solid var(--cp-border);
+  border-radius: 5px;
+  color: var(--cp-text-muted);
+  font-size: 9px;
+}
+.lane-metric b { display: block; color: var(--cp-text); font-size: 14px; line-height: 1.1; }
+.lane-items { list-style: none; padding: 0; margin: 10px 0 0; }
+.lane-items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 0;
+  border-top: 1px solid var(--cp-border);
+  color: var(--cp-text-soft);
+  font-size: 10px;
+}
+.lane-items li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lane-items em { color: var(--cp-text-muted); font-style: normal; white-space: nowrap; }
+.lane-foot {
+  margin-top: auto;
+  padding-top: 10px;
+  color: var(--cp-text-muted);
+  font-size: 9px;
+}
+.lane-foot time { text-align: right; }
+.focus-card.is-loading { opacity: .7; }
 .focus-card:last-child { border-right: 0; }
 .focus-card:hover, .focus-card:focus-visible {
   outline: none;
@@ -791,7 +845,7 @@ body {
   line-height: 1.5;
   margin-top: 7px;
 }
-.focus-card em {
+.focus-card > em {
   margin-top: auto;
   color: var(--cp-text-soft);
   font-size: 10px;

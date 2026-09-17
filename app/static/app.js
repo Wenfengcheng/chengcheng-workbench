@@ -9,6 +9,7 @@ let sweepRequestedAt = 0;
 // a checkbox could be wiped by a refresh a couple seconds after being clicked.
 const selectedApprovals = new Set();
 let approvalsRenderSig = "";
+let opsLanes = [];
 
 const $ = (id) => document.getElementById(id);
 
@@ -246,6 +247,39 @@ function renderMetrics() {
   $("calendarSignal").textContent = kpiItems("calendar").length;
   $("teamsSignal").textContent = kpiItems("messages").length;
   $("ledgerUpdated").textContent = state.serverTime ? new Date(state.serverTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—";
+}
+
+const OPS_STATUS = {
+  normal: "正常",
+  attention: "需关注",
+  blocked: "阻塞",
+  waiting_approval: "待审批",
+  in_progress: "处理中",
+  verified: "已验证",
+  unknown: "待刷新"
+};
+
+function renderOpsLanes() {
+  const root = $("opsLanes");
+  if (!root) return;
+  root.innerHTML = opsLanes.map((lane, index) => {
+    const metrics = (lane.metrics || []).slice(0, 3).map((metric) => `
+      <span class="lane-metric"><b>${escapeHtml(metric.value ?? "—")}</b>${escapeHtml(metric.label || "指标")}</span>
+    `).join("");
+    const items = (lane.items || []).slice(0, 2).map((item) => `
+      <li><span>${escapeHtml(item.title || item.summary || "待处理事项")}</span><em>${escapeHtml(OPS_STATUS[item.status] || item.status || "")}</em></li>
+    `).join("");
+    const evidence = (lane.evidence || []).length;
+    return `
+      <article class="focus-card lane-${escapeHtml(lane.status || "unknown")}">
+        <div class="lane-top"><span class="focus-index">${String(index + 1).padStart(2, "0")}</span><span class="lane-status">${escapeHtml(OPS_STATUS[lane.status] || lane.status)}</span></div>
+        <strong>${escapeHtml(lane.title)}</strong>
+        <span class="lane-headline">${escapeHtml(lane.headline)}</span>
+        ${metrics ? `<div class="lane-metrics">${metrics}</div>` : ""}
+        ${items ? `<ul class="lane-items">${items}</ul>` : ""}
+        <div class="lane-foot"><span>${escapeHtml(lane.owner)} · ${evidence} 条证据</span><time>${lane.updatedAt ? formatTime(lane.updatedAt) : "尚未刷新"}</time></div>
+      </article>`;
+  }).join("");
 }
 
 function jobsForEmployee(name) {
@@ -991,10 +1025,16 @@ function render() {
   renderDrafts();
   renderMessages();
   renderThreadContext();
+  renderOpsLanes();
 }
 
 async function loadState() {
-  state = await api("/api/state");
+  const [nextState, laneState] = await Promise.all([
+    api("/api/state"),
+    api("/api/ops-lanes").catch(() => ({ lanes: [] }))
+  ]);
+  state = nextState;
+  opsLanes = laneState.lanes || [];
   render();
 }
 
