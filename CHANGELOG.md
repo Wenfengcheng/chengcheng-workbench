@@ -1,6 +1,13 @@
 # Changelog
 
-## Chengcheng Workbench 0.4.0 (unreleased)
+## Chengcheng Workbench 0.4.1 (unreleased)
+
+- Hardened remote control with mandatory request IDs, Scout Teams Bot source binding, personal-chat restriction, and explicit confirmation for decisions.
+- Added durable remote audit records and idempotent request replay; duplicate Teams deliveries return the original result instead of deciding twice.
+- Added a localhost-only Scout Teams client and verified live status plus replay behavior end to end.
+- Created a clean pending Skill Workshop proposal for `chengcheng-workbench-remote`; it is intentionally not auto-applied.
+
+## Chengcheng Workbench 0.4.0
 
 - Added a dedicated Chinese engineering action approval center for Pipeline retry, Security Tag, deployment, ADO update, and cloud-change proposals.
 - Every proposal requires an exact target and exact action and can carry environment, risk, prechecks, rollback/stop conditions, and evidence.
